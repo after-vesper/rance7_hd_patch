@@ -1,0 +1,8 @@
+*.exe
+*.dll
+*.ald
+*.ain
+r7.asm
+*.obj
+*.lib
+dist/
