@@ -6,3 +6,5 @@ r7.asm
 *.obj
 *.lib
 dist/
+__pycache__/
+*.pyc
