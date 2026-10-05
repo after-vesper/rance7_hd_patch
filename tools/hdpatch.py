@@ -15,6 +15,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -84,8 +85,9 @@ def cmd_extract(args):
     os.makedirs(args.outdir, exist_ok=True)
     jobs = []
     n_skip = 0
+    pat = re.compile(args.filter, re.I) if args.filter else None
     for off, hsize, dsize, name, _ in entries:
-        if name.lower().endswith('.qnt'):
+        if name.lower().endswith('.qnt') and (not pat or pat.search(name)):
             jobs.append((data[off + hsize:off + hsize + dsize],
                          os.path.join(args.outdir, name[:-4] + '.png'),
                          name))
@@ -111,27 +113,57 @@ def _iter_pngs(indir):
             yield fn
 
 
+def _run_upscaler(args, src, dst):
+    """外部コマンドまたは Pillow で画像を1枚アップスケールする。"""
+    if args.cmd:
+        cmd = (args.cmd.replace('{in}', src).replace('{out}', dst)
+               .replace('{scale}', str(args.scale)))
+        subprocess.run(cmd, shell=True, check=True)
+    else:
+        img = Image.open(src)
+        resample = (Image.LANCZOS if args.method == 'lanczos'
+                    else Image.NEAREST)
+        img.resize((img.width * args.scale, img.height * args.scale),
+                   resample).save(dst)
+
+
+def _upscale_alpha_split(args, src, dst, tmpdir):
+    """RGBA を RGB + グレースケールα に分割して個別に拡大し再合成する。
+
+    外部アップスケーラが透過を保持しない場合に使う。アルファは
+    滑らかなので Pillow (BICUBIC) で拡大する。
+    """
+    img = Image.open(src).convert('RGBA')
+    rgb = img.convert('RGB')
+    alpha = img.getchannel('A')
+    rgb_tmp = os.path.join(tmpdir, 'rgb.png')
+    rgb_up = os.path.join(tmpdir, 'rgb_up.png')
+    rgb.save(rgb_tmp)
+    _run_upscaler(args, rgb_tmp, rgb_up)
+    up = Image.open(rgb_up).convert('RGB')
+    a_up = alpha.resize((up.width, up.height), Image.BICUBIC)
+    up.putalpha(a_up)
+    up.save(dst)
+
+
 def cmd_upscale(args):
     """PNG 群をアップスケール。--cmd 指定時は外部ツール、無指定は Pillow。"""
     _require_pil()
     os.makedirs(args.outdir, exist_ok=True)
+    tmpdir = os.path.join(args.outdir, '.tmp_alpha')
     n = 0
     for fn in _iter_pngs(args.indir):
         src = os.path.join(args.indir, fn)
         dst = os.path.join(args.outdir, fn)
-        if args.cmd:
-            cmd = (args.cmd.replace('{in}', src).replace('{out}', dst)
-                   .replace('{scale}', str(args.scale)))
-            subprocess.run(cmd, shell=True, check=True)
+        if args.alpha_split and Image.open(src).mode == 'RGBA':
+            os.makedirs(tmpdir, exist_ok=True)
+            _upscale_alpha_split(args, src, dst, tmpdir)
         else:
-            img = Image.open(src)
-            resample = (Image.LANCZOS if args.method == 'lanczos'
-                        else Image.NEAREST)
-            img.resize((img.width * args.scale, img.height * args.scale),
-                       resample).save(dst)
+            _run_upscaler(args, src, dst)
         n += 1
         if n % 100 == 0:
             print(f'{n} 件処理...', flush=True)
+    shutil.rmtree(tmpdir, ignore_errors=True)
     # manifest も引き継ぐ
     mf = os.path.join(args.indir, 'manifest.json')
     if os.path.exists(mf):
@@ -222,6 +254,8 @@ def main():
     e.add_argument('outdir')
     e.add_argument('--jobs', type=int, default=None,
                    help='並列ワーカー数 (既定: CPUコア数)')
+    e.add_argument('--filter', help='展開対象をファイル名正規表現で絞る '
+                                    '(例: "cg0000|cg0450")')
     e.set_defaults(f=cmd_extract)
 
     u = sub.add_parser('upscale', help='PNG 群をアップスケール')
@@ -232,6 +266,9 @@ def main():
                                  '({in} {out} {scale} が置換される)')
     u.add_argument('--method', choices=['nearest', 'lanczos'],
                    default='lanczos')
+    u.add_argument('--alpha-split', action='store_true',
+                   help='RGBA を RGB+α に分けて拡大し再合成 '
+                        '(透過を保持しない外部ツール向け)')
     u.set_defaults(f=cmd_upscale)
 
     r = sub.add_parser('repack', help='PNG 群で ALD を再パック')
