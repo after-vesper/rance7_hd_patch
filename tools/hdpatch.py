@@ -23,7 +23,9 @@ import sys
 from concurrent.futures import ProcessPoolExecutor
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import ajp
 import ald
+import io
 import qnt
 
 try:
@@ -56,8 +58,15 @@ def _extract_one(job):
 
 
 def _repack_one(job):
-    """ワーカー: (pngパス, manifest情報) -> QNT バイト列。"""
-    png, info = job
+    """ワーカー: (kind, pngパス, manifest値, 原本bytes) -> 差し替えバイト列"""
+    kind, png, info, orig = job
+    if kind == 'ajp':
+        # AJP: PNG -> JPEG(品質95) -> 原本ヘッダをテンプレートに再エンコード
+        from PIL import Image
+        img = Image.open(png).convert('RGB')
+        buf = io.BytesIO()
+        img.save(buf, 'JPEG', quality=95)
+        return ajp.encode(img.width, img.height, buf.getvalue(), orig)
     want_alpha = info.get('bpp', 24) == 32
     return png_to_qnt(png, want_alpha, info.get('x', 0), info.get('y', 0))
 
@@ -213,15 +222,18 @@ def repack_ald(ald_path, pngdir, out_path, njobs=None):
     for off, hsize, dsize, name, _ in entries:
         png = os.path.join(pngdir, os.path.splitext(name)[0] + '.png')
         if name.lower().endswith('.qnt') and os.path.exists(png):
-            jobs.append((name, png, manifest.get(name, {})))
+            jobs.append(('qnt', name, png, manifest.get(name, {}), None))
+        elif name.lower().endswith('.ajp') and os.path.exists(png):
+            orig = data[off + hsize:off + hsize + dsize]
+            jobs.append(('ajp', name, png, {}, orig))
     payloads = {}
     if jobs:
         with ProcessPoolExecutor(max_workers=njobs) as ex:
             done = 0
             for name, payload in zip(
-                    (j[0] for j in jobs),
+                    (j[1] for j in jobs),
                     ex.map(_repack_one,
-                           [(j[1], j[2]) for j in jobs], chunksize=4)):
+                           [(j[0], j[2], j[3], j[4]) for j in jobs], chunksize=4)):
                 payloads[name] = payload
                 done += 1
                 if done % 200 == 0:
