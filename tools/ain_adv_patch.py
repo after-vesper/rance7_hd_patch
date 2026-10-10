@@ -118,6 +118,13 @@ def main(src_path, dst_path):
                 "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
+    for off, val in SINGLES_ABS:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != ABS_BASE[off]:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, ABS_BASE[off]))
+        struct.pack_into("<i", dec, off, val)
+        patched += 1
     for off, expected in SINGLES5:
         old = struct.unpack_from("<i", dec, off)[0]
         if old != expected:
@@ -131,6 +138,27 @@ def main(src_path, dst_path):
     print("patched %d, skipped %d -> %s" % (patched, skipped, dst_path))
 
 
+
+# --- 絶対値書き込み (2倍化ではない個所) ---
+ABS_BASE = {
+    0x1A8B9E: 12,
+    0x1A8BB8: 12,
+    0x1A8AE6: -8,
+    0x1A8B00: -8,
+    0x1A8CFC: -8,
+    0x1A8D16: -8,
+}
+SINGLES_ABS = [
+    # tagMap@setCursor: ポインタのワープ先=マーク中心 (50x50家紋の中心=+25)
+    (0x1A8B9E, 25),
+    (0x1A8BB8, 25),
+    # tagMap@lock: カーソル枠スプライト位置 (82x82枠を50x50家紋に中央合わせ: 25-41=-16)
+    # member5=ホバーカーソル枠 / member6=ロック枠: 82x82枠を50x50家紋に中央合わせ (-16)
+    (0x1A8AE6, -16),
+    (0x1A8B00, -16),
+    (0x1A8CFC, -16),
+    (0x1A8D16, -16),
+]
 
 # --- 追加パッチ (ウェイトアイコン / システムメニュー) ---
 # BLOCKS2: (先頭PUSHオフセット, 2倍化する引数index群)
@@ -342,8 +370,8 @@ SINGLES5 = [
     # tagShisetsu@create: 城/家紋スプライトのバッファサイズ
     (0x1ABAF4, 28), (0x1ABAFA, 38),   # 城アイコン w/h
     (0x1ABB3A, 25), (0x1ABB40, 25),   # 家紋オーバーレイ w/h
-    # tagMap@setCursor: 家紋カーソルのホットスポット (+12,+12)
-    (0x1A8B9E, 12), (0x1A8BB8, 12),
+    # tagMap@setCursor: 家紋カーソルのスナップ中心 (+25 = 50px家紋の中心)
+    # ※SINGLES_ABSで絶対値25を書き込む
     # tagSystemRoute@create: RanceVIIバナー位置 (664,572)
     (0x1FE60E, 664), (0x1FE614, 572),
     # tagShisetsu/tagShisetsuManager: 城アイコン配置
