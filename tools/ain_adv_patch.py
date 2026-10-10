@@ -342,6 +342,8 @@ SINGLES5 = [
     # tagShisetsu@create: 城/家紋スプライトのバッファサイズ
     (0x1ABAF4, 28), (0x1ABAFA, 38),   # 城アイコン w/h
     (0x1ABB3A, 25), (0x1ABB40, 25),   # 家紋オーバーレイ w/h
+    # tagMap@setCursor: 家紋カーソルのホットスポット (+12,+12)
+    (0x1A8B9E, 12), (0x1A8BB8, 12),
     # tagSystemRoute@create: RanceVIIバナー位置 (664,572)
     (0x1FE60E, 664), (0x1FE614, 572),
     # tagShisetsu/tagShisetsuManager: 城アイコン配置
