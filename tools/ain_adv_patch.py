@@ -383,6 +383,7 @@ SINGLES5 = [
     (0x1B6648, 20), (0x1B665A, 20),   # show2: フォント
     # tagCommand: カーソル位置オフセット
     (0x1B8B3A, -60),
+    # tagCommandList@setSelect: 選択カーソル(member3)位置 (x-64, y-4)
     (0x1B902A, -64), (0x1B9038, -4),
     # tagCommandList@setTopIndex: レイアウト
     (0x1B93D4, 66), (0x1B93DE, 6),      # 開始位置
