@@ -534,6 +534,24 @@ SINGLES5 = [
     # tagChiikiAction@create: 行動回数軍配アイコン
     (0x1B6D84, 126), (0x1B6D8E, 213),   # 基点 (126,213)
     (0x1B6EE8, 27),                    # 列ピッチ 27
+    # tagSystemInfo@create: システム情報ダイアログ
+    (0x1B9E80, 15), (0x1B9E86, 10),     # タイトルバー位置
+    (0x1B9F78, 81), (0x1B9F7E, 24),     # member2 テキスト w/h
+    (0x1B9FAA, 172), (0x1B9FB0, 47),    # member2 位置
+    (0x1B9EFA, 24),                     # member2 フォント
+    (0x1BA01E, 105), (0x1BA024, 35),    # member3 テキスト w/h
+    (0x1BA050, 336), (0x1BA056, 82),    # member3 位置
+    (0x1BA262, 3),                      # member4 tagDrawText スペース
+    (0x1BA27A, 33), (0x1BA280, 100),    # member4 位置
+    (0x1BA2C0, 18),                     # member4 フォント
+    (0x1BA3F8, 8),                      # member5 tagDrawText スペース
+    (0x1BA410, 24), (0x1BA416, 393),    # member5 位置
+    (0x1BA456, 16),                     # member5 フォント
+    (0x1BA5EE, 467), (0x1BA5F4, 103),   # member6 ボタン1位置
+    (0x1BA6B6, 432), (0x1BA6BC, 10),    # member6 ボタン2位置
+    (0x1BA81A, 292),                    # 瓢箪アイコン Y
+    # tagSystemInfo@getHyotanX: 瓢箪アイコン X (20 + 54*i)
+    (0x1BAB98, 20), (0x1BAB9E, 54),
 ]
 
 if __name__ == "__main__":
