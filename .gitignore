@@ -1,10 +1,21 @@
-*.exe
-*.dll
-*.ald
+# Copyrighted game data — never commit (full game install lives here)
+game/
+Rance7.ain
 *.ain
-r7.asm
-*.obj
-*.lib
-dist/
-__pycache__/
-*.pyc
+System40.ini
+SaveData/
+backup/
+
+# Generated dumps and build output
+dump/
+build/
+*.jam
+!hooks.jam
+*.tmp
+
+# Tool binaries — downloaded at setup time (see AGENTS.md), do not commit
+tools/
+
+# Extracted/derived game dialogue (copyrighted) — local working copies only
+src/*_prologue_*.txt
+src/dlc1_op_script.txt

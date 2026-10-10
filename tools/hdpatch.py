@@ -68,7 +68,7 @@ def png_to_qnt(path, want_alpha, x=0, y=0):
     img = Image.open(path)
     if want_alpha:
         img = img.convert('RGBA')
-        b, g, r, a = img.split()
+        r, g, b, a = img.split()
         bgr = Image.merge('RGB', (b, g, r)).tobytes()
         return qnt.encode(img.width, img.height, bgr, a.tobytes(), x, y)
     img = img.convert('RGB')
@@ -127,6 +127,14 @@ def _run_upscaler(args, src, dst):
                    resample).save(dst)
 
 
+def _upscale_one_pil(job):
+    """ワーカー: Pillow で1枚拡大。(src, dst, scale, method)"""
+    src, dst, scale, method = job
+    img = Image.open(src)
+    resample = Image.LANCZOS if method == 'lanczos' else Image.NEAREST
+    img.resize((img.width * scale, img.height * scale), resample).save(dst)
+
+
 def _upscale_alpha_split(args, src, dst, tmpdir):
     """RGBA を RGB + グレースケールα に分割して個別に拡大し再合成する。
 
@@ -151,18 +159,30 @@ def cmd_upscale(args):
     _require_pil()
     os.makedirs(args.outdir, exist_ok=True)
     tmpdir = os.path.join(args.outdir, '.tmp_alpha')
-    n = 0
-    for fn in _iter_pngs(args.indir):
-        src = os.path.join(args.indir, fn)
-        dst = os.path.join(args.outdir, fn)
-        if args.alpha_split and Image.open(src).mode == 'RGBA':
-            os.makedirs(tmpdir, exist_ok=True)
-            _upscale_alpha_split(args, src, dst, tmpdir)
-        else:
-            _run_upscaler(args, src, dst)
-        n += 1
-        if n % 100 == 0:
-            print(f'{n} 件処理...', flush=True)
+
+    if not args.cmd and not args.alpha_split:
+        # Pillow 単体パスは並列化できる
+        jobs = [(os.path.join(args.indir, fn), os.path.join(args.outdir, fn),
+                 args.scale, args.method) for fn in _iter_pngs(args.indir)]
+        n = 0
+        with ProcessPoolExecutor(max_workers=args.jobs) as ex:
+            for _ in ex.map(_upscale_one_pil, jobs, chunksize=8):
+                n += 1
+                if n % 200 == 0:
+                    print(f'{n}/{len(jobs)} 件処理...', flush=True)
+    else:
+        n = 0
+        for fn in _iter_pngs(args.indir):
+            src = os.path.join(args.indir, fn)
+            dst = os.path.join(args.outdir, fn)
+            if args.alpha_split and Image.open(src).mode == 'RGBA':
+                os.makedirs(tmpdir, exist_ok=True)
+                _upscale_alpha_split(args, src, dst, tmpdir)
+            else:
+                _run_upscaler(args, src, dst)
+            n += 1
+            if n % 100 == 0:
+                print(f'{n} 件処理...', flush=True)
     shutil.rmtree(tmpdir, ignore_errors=True)
     # manifest も引き継ぐ
     mf = os.path.join(args.indir, 'manifest.json')
@@ -269,6 +289,8 @@ def main():
     u.add_argument('--alpha-split', action='store_true',
                    help='RGBA を RGB+α に分けて拡大し再合成 '
                         '(透過を保持しない外部ツール向け)')
+    u.add_argument('--jobs', type=int, default=None,
+                   help='並列ワーカー数 (Pillow パスのみ有効)')
     u.set_defaults(f=cmd_upscale)
 
     r = sub.add_parser('repack', help='PNG 群で ALD を再パック')
