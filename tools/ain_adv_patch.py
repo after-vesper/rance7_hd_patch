@@ -524,6 +524,16 @@ SINGLES5 = [
     (0x1A9656, 494),
     (0x1A966E, 24),
     (0x1A9674, 477),
+    # tagShortCutManager@init: F1-F4/F5/ESC ラベルスプライト位置
+    (0x1FECD8, 27), (0x1FECDE, 557),    # F1 (27,557)
+    (0x1FED3A, 104), (0x1FED40, 557),   # F2 (104,557)
+    (0x1FED9C, 172), (0x1FEDA2, 557),   # F3 (172,557)
+    (0x1FEDFE, 241), (0x1FEE04, 557),   # F4 (241,557)
+    (0x1FEE60, 511), (0x1FEE66, 129),   # F5 (511,129)
+    (0x1FEEC2, 41), (0x1FEEC8, 277),    # ESC (41,277)
+    # tagChiikiAction@create: 行動回数軍配アイコン
+    (0x1B6D84, 126), (0x1B6D8E, 213),   # 基点 (126,213)
+    (0x1B6EE8, 27),                    # 列ピッチ 27
 ]
 
 if __name__ == "__main__":
