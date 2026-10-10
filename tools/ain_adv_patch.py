@@ -339,6 +339,12 @@ SINGLES5 = [
     # tagCommand@create: コマンドリスト項目
     (0x1B87DA, 16),                     # フォントサイズ
     (0x1B8858, 338), (0x1B885E, 16),    # 項目スプライト w/h
+    # tagShisetsu@create: 城/家紋スプライトのバッファサイズ
+    (0x1ABAF4, 28), (0x1ABAFA, 38),   # 城アイコン w/h
+    (0x1ABB3A, 25), (0x1ABB40, 25),   # 家紋オーバーレイ w/h
+    # tagShisetsu/tagShisetsuManager: 城アイコン配置
+    (0x1ABCFA, 1), (0x1ABD0C, 41),    # setPos 家紋オフセット (+1,+41)
+    (0x1ABF9A, 34),                   # setPos 列ピッチ (+34)
     # tagComment: ホバー情報ボックス
     (0x1B643E, 20), (0x1B6450, 20),   # show: フォント
     (0x1B64FC, 18), (0x1B650E, 7), (0x1B6520, 18),  # 行高・マージン
