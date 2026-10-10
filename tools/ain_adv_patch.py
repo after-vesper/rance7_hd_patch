@@ -95,6 +95,13 @@ def main(src_path, dst_path):
                 "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
+    for off, expected in SINGLES3:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
     for lo, hi, vals in RANGE_PATCH:
         i = lo
         while i < hi:
@@ -150,6 +157,52 @@ SINGLES2 = [
 RANGE_PATCH = [
     (0x1FAE00, 0x1FB460, {16, 22, 24}),
 ]
+
+# SINGLES3: tagSelect 系共有リストメニュー (館メニュー/環境設定/選択肢 共通)
+# (immのオフセット, 期待値) -> 2倍化
+SINGLES3 = [
+    # tagSelect@create
+    (0x19B17E, 374),   # ベース枠幅
+    (0x19B1EC, 4),     # タイトルバー +x
+    (0x19B1FA, 4),     # タイトルバー +y
+    (0x19B2C0, 340),   # 「閉」ボタン +x
+    (0x19B2CE, 6),     # 「閉」ボタン +y
+    # tagSelect@createBase
+    (0x19B88A, 12),    # 枠高マージン
+    (0x19B89A, 547),   # 高さ上限 (比較値)
+    (0x19B8AC, 547),   # 高さ上限 (代入値)
+    (0x19B8C6, 3),     # nH2 = nH + 3
+    # tagSelect@createButton
+    (0x19BA30, 6),     # 項目間隔 +6
+    (0x19BA64, 12),    # 項目間隔 +12
+    (0x19BA7C, 10),    # 項目間隔 +10
+    (0x19BA90, 42),    # 初期オフセット nH=42
+    (0x19BB6C, 26),    # ボタン x
+    (0x19BB78, 3),     # ボタン y = nH - 3
+    (0x19BBC6, 26),    # 項目高 +26
+    # tagSelect@createText
+    (0x19BC38, 12), (0x19BC6C, 2), (0x19BC84, 10), (0x19BC98, 42),
+    (0x19BCD2, 17),    # テキスト分割幅(文字数)
+    (0x19BD72, 22),    # 行高
+    (0x19BD80, 2),     # 行間
+    (0x19BDB8, 20),    # フォントサイズ
+    (0x19BE4E, 364),   # テキストスプライト幅
+    (0x19BE80, 5),     # x位置
+    (0x19BEB0, 12),    # nTextX
+    (0x19BEC2, 1),     # nTextY
+    (0x19BF0E, 364), (0x19BF14, 22), (0x19BF44, 364), (0x19BF4A, 22),
+    (0x19BFB0, 24),    # nY += 24
+    # tagSelect@createSeparator
+    (0x19C038, 10), (0x19C06C, 10), (0x19C084, 10), (0x19C098, 42),
+    (0x19C104, 364), (0x19C10A, 4), (0x19C11E, 5),
+    (0x19C144, 364), (0x19C14A, 4), (0x19C186, 4),
+    # tagSelectCg@createSp
+    (0x19A23C, 18),    # 項目フォントサイズ
+    # tagTitleBar@create
+    (0x1ACAC0, 20),    # タイトル文字サイズ
+    (0x1ACBEE, 20),    # 数字部分サイズ
+]
+
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
