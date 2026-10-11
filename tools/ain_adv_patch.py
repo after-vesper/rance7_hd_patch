@@ -200,6 +200,22 @@ def main(src_path, dst_path):
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
 
+    for off, expected in SINGLES15:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
+    for off, expected in SINGLES16:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
     ks = _mt_stream(0x5D3E3, len(dec))
     open(dst_path, "wb").write(bytes(b ^ k for b, k in zip(dec, ks)))
     print("patched %d, skipped %d -> %s" % (patched, skipped, dst_path))
@@ -1104,6 +1120,32 @@ SINGLES14 = [
     (0x1C80A4, 155), (0x1C80B0, 7), (0x1C80D0, 33),
     # tagBattleWaza@setPos: 行動回数フラグ列 .LOCALPLUSA 65 / .LOCALMINUSA 13 (imm file offsets)
     (0x1CAE84, 65), (0x1CAEE8, 13),
+]
+
+# SINGLES15: 参加選択/斥候パネル 説明文の行ピッチ (tagSankaList@drawInfo .LOCALPLUSA nY 31)
+SINGLES15 = [
+    (0x1AF61E, 31), (0x1AF7FE, 31), (0x1AF8F4, 31),
+]
+
+# SINGLES16: 斥候選択画面の未パッチ座標 (tagSankaList / tagSanka)
+SINGLES16 = [
+    # tagSankaList@create: 決定ボタンX / スロット基準(nX,nY) / ピッチ / マップサムネ位置
+    (0x1ADB64, 299), (0x1ADBB6, 13), (0x1ADBC0, 484), (0x1ADC24, 71),
+    (0x1AD92C, 11), (0x1AD932, 37),
+    # tagSankaList@setValue: normalizeTextY(28,24) + getTextWidth font x2
+    (0x1AEF1E, 28), (0x1AEF24, 24), (0x1AF076, 24), (0x1AF122, 24),
+    # tagSankaList@drawInfo type==2 (斥候説明文): nX base/width/font, nY, nX2, +nY pitch, nY3
+    (0x1AF3C2, 4), (0x1AF414, 105), (0x1AF41A, 169), (0x1AF420, 24),
+    (0x1AF440, 40), (0x1AF482, 274), (0x1AF4DE, 31),
+    # drawInfo type==3 (スキル説明リスト): nX, nY
+    (0x1AF592, 105), (0x1AF59C, 40),
+    # drawInfo else (国名+マップサムネ+行): text base/width/font, nY, nX2 x3, thumb offset -32
+    (0x1AF676, 142), (0x1AF67C, 118), (0x1AF682, 24), (0x1AF6A2, 40),
+    (0x1AF6E4, 260), (0x1AF770, -32),
+    (0x1AF7CE, 105), (0x1AF7D4, 155), (0x1AF7DA, 24), (0x1AF844, 260),
+    (0x1AF8C4, 105), (0x1AF8CA, 155), (0x1AF8D0, 24), (0x1AF93A, 260),
+    # tagSankaList@dragBusho: drag ghost center offset (32,36) + slot size (65,72)
+    (0x1AE378, 32), (0x1AE392, 36), (0x1AE5A2, 65), (0x1AE5D6, 72),
 ]
 
 if __name__ == "__main__":
