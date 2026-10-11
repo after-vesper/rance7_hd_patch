@@ -174,6 +174,13 @@ def main(src_path, dst_path):
                 "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
+    for off, expected in SINGLES12:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
 
     ks = _mt_stream(0x5D3E3, len(dec))
     open(dst_path, "wb").write(bytes(b ^ k for b, k in zip(dec, ks)))
@@ -826,6 +833,16 @@ SINGLES11 = [
     (0x213EFC, 800), (0x213F02, 94),   # 注意文 黒マスク帯スプライトサイズ
     (0x213F20, 800), (0x213F26, 94),   # 注意文 黒マスク帯塗りつぶし矩形
     (0x213F50, 506),                   # 注意文 黒マスク帯 y 位置
+]
+
+# SINGLES12: 帝ノート画面 (tagMikadoNote@create / tagMikadoData@create)
+SINGLES12 = [
+    (0x20267E, 182), (0x202684, 26),   # タイトルバー位置
+    (0x20280C, 643), (0x202812, 431),  # ボタン0 位置
+    (0x2028D4, 597), (0x2028DA, 26),   # ボタン1 位置
+    (0x2029A0, 57), (0x2029A6, 104),   # グリッド y 原点/行ピッチ
+    (0x2029F2, 180), (0x2029F8, 111),  # グリッド x 原点/列ピッチ
+    (0x2023FE, 68), (0x20240C, 52),    # 得点数字のカード内オフセット
 ]
 
 if __name__ == "__main__":
