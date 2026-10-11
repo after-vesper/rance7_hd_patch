@@ -146,6 +146,13 @@ def main(src_path, dst_path):
                 "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
+    for off, expected in SINGLES8:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
 
     ks = _mt_stream(0x5D3E3, len(dec))
     open(dst_path, "wb").write(bytes(b ^ k for b, k in zip(dec, ks)))
@@ -751,6 +758,22 @@ SINGLES7 = [
     # tagBushoInfo@dragItem: センタリング -32, バッファ +64, ドロップ矩形
     (0x1EFBE8, 0x20), (0x1EFC02, 0x20), (0x1EFE0A, 0x40), (0x1EFE3E, 0x40),
     (0x1EFF16, 0x11a), (0x1EFF1C, 0x178), (0x1EFF22, 0x23c),
+]
+
+# SINGLES8: タイトルメニュー (tagTitle@create) ボタン座標・ピッチ
+SINGLES8 = [
+    (0x1FF6A0, 0xf2),                  # メニュー基準X 242
+    (0x1FF6AA, 0x19a),                 # メニュー基準Y 410
+    (0x1FF6F6, 39), (0x1FF728, 39), (0x1FF75A, 39),  # 行ピッチ
+    (0x19A6AA, 18),                    # tagSelectCg@createSpTitle: ボタン文字フォント
+    (0x199D7C, 322), (0x199D8E, 32),   # tagSelectCg@create: ボタンCGワークサイズ
+    # tagSelectCg@create: 状態スプライトへのdrawCg転写 (3,3, slice, 0,0,316,26)
+    (0x199E7E, 3), (0x199E84, 3),      # member0 転写先オフセット
+    (0x199EA4, 316), (0x199EAA, 26),   # member0 転写元サイズ
+    (0x199F92, 3), (0x199F98, 3),      # member1 転写先オフセット
+    (0x199FB8, 316), (0x199FBE, 26),   # member1 転写元サイズ
+    (0x19A0A6, 3), (0x19A0AC, 3),      # member2 転写先オフセット
+    (0x19A0CC, 316), (0x19A0D2, 26),   # member2 転写元サイズ
 ]
 
 if __name__ == "__main__":
