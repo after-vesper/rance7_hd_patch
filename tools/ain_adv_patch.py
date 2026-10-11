@@ -182,6 +182,16 @@ def main(src_path, dst_path):
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
 
+
+
+    for off, expected in SINGLES13:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
     ks = _mt_stream(0x5D3E3, len(dec))
     open(dst_path, "wb").write(bytes(b ^ k for b, k in zip(dec, ks)))
     print("patched %d, skipped %d -> %s" % (patched, skipped, dst_path))
@@ -845,5 +855,239 @@ SINGLES12 = [
     (0x2023FE, 68), (0x20240C, 52),    # 得点数字のカード内オフセット
 ]
 
+
+# SINGLES13: 合戦画面 (tagBattle*/tagBushoFace/tagSanka*/tagSansen* レイアウト)
+SINGLES13 = [
+    # tagBushoFace@createSp
+    (0x1AC8C0, 10), (0x1AC93E, 65), (0x1AC944, 72), (0x1AC970, 1),
+    (0x1AC976, 1), (0x1AC97C, 63), (0x1AC982, 70), (0x1AC9A6, 1),
+    (0x1AC9AC, 1), (0x1AC9B2, 63), (0x1AC9B8, 70),
+    # tagSanka@create
+    (0x1AD142, 65), (0x1AD148, 72), (0x1AD1AA, 16), (0x1AD1B0, 16),
+    (0x1AD1E2, 25), (0x1AD1F0, -22),
+    # tagSanka@set
+    (0x1AD364, 16),
+    # tagSankaList@open
+    (0x1AD7F0, 1), (0x1AD7F6, 282), (0x1AD80A, 26), (0x1AD812, 65),
+    (0x1AD818, 26),
+    # tagSankaList@close
+    (0x1AD88C, 1), (0x1AD892, 282), (0x1AD8A6, 26), (0x1AD8AE, 65),
+    (0x1AD8B4, 26),
+    # tagSankaList@create
+    (0x1AD8FE, 1), (0x1AD904, 282), (0x1AD950, 120), (0x1AD956, 28),
+    (0x1AD982, 193), (0x1AD988, 424), (0x1AD9D4, 13), (0x1AD9DA, 287),
+    (0x1AD9FE, 20), (0x1ADB6A, 286),
+    # tagSankaList@setValue
+    (0x1AEE94, 24),
+    # tagSankaList@drawInfo
+    (0x1AF2BE, 24), (0x1AF342, 20), (0x1AF778, 39), (0x1AF784, 0),
+    (0x1AF78A, 0),
+    # tagSansenList@open
+    (0x1AFBC0, 1), (0x1AFBC6, 282), (0x1AFBDA, 26), (0x1AFBE2, 65),
+    (0x1AFBE8, 26),
+    # tagSansenList@close
+    (0x1AFC64, 1), (0x1AFC6A, 282), (0x1AFC7E, 26), (0x1AFC86, 65),
+    (0x1AFC8C, 26),
+    # tagSansenList@create
+    (0x1AFCDE, 1), (0x1AFCE4, 282), (0x1AFD0C, 13), (0x1AFD12, 287),
+    (0x1AFDFA, 225), (0x1AFE00, 286), (0x1AFEDC, 225), (0x1AFEE2, 286),
+    (0x1AFFAA, 299), (0x1AFFB0, 286), (0x1B0082, 188), (0x1B00BC, 315),
+    (0x1B013C, 82), (0x1B0154, 180),
+    # tagSansenTeki@open
+    (0x1B215C, 1), (0x1B2162, 282), (0x1B2176, 26), (0x1B217E, 65),
+    (0x1B2184, 26),
+    # tagSansenTeki@close
+    (0x1B21F4, 1), (0x1B21FA, 282), (0x1B220E, 26), (0x1B2216, 65),
+    (0x1B221C, 26),
+    # tagSansenTeki@create
+    (0x1B2266, 1), (0x1B226C, 282), (0x1B2294, 45), (0x1B229A, 287),
+    (0x1B236E, 341), (0x1B2374, 288), (0x1B23F2, 10), (0x1B242C, 315),
+    (0x1B24AC, 82), (0x1B24C4, 180), (0x1B2590, 10), (0x1B2596, 3),
+    # tagForceFull@create
+    (0x1BE0E2, 1), (0x1BE0E8, 2), (0x1BE122, 1),
+    # tagForce@create
+    (0x1BF1BA, 1),
+    # tagBattle@createSpot
+    (0x1C1ADE, 6), (0x1C1AFC, 0), (0x1C1B02, 0), (0x1C1B22, 0),
+    (0x1C1B28, 320),
+    # tagBattle@createSpot2
+    (0x1C1BAE, 6), (0x1C1BCC, 0), (0x1C1BD2, 0), (0x1C1BF2, 0),
+    (0x1C1BF8, 320),
+    # tagBattle@showNumber
+    (0x1C20AA, 42), (0x1C20C2, 598), (0x1C2110, 42), (0x1C2116, 278),
+    (0x1C213A, 598), (0x1C2140, 278),
+    # tagBattle@hideNumber
+    (0x1C217E, 42), (0x1C2184, 278), (0x1C21BA, 598), (0x1C21C0, 278),
+    (0x1C2296, 42), (0x1C22AE, 598),
+    # tagBattle@fillSpotMask
+    (0x1C2D26, 320), (0x1C2D44, 178), (0x1C2D4A, 80), (0x1C2D50, 0),
+    (0x1C2D7A, 154), (0x1C2D88, 24), (0x1C2D8E, 26), (0x1C2D94, 128),
+    (0x1C2DAC, 154), (0x1C2DBA, 54), (0x1C2DC2, 24), (0x1C2DC8, 26),
+    (0x1C2DCE, 128), (0x1C2DFA, 24), (0x1C2E00, 26), (0x1C2E06, 128),
+    (0x1C2E2C, 54), (0x1C2E34, 24), (0x1C2E3A, 26), (0x1C2E40, 128),
+    # tagBattleBase@create
+    (0x1C2E9C, 800), (0x1C2EA2, 314), (0x1C2EB6, 0), (0x1C2EBC, 0),
+    (0x1C2EF8, 0), (0x1C2EFE, 0), (0x1C2F04, 800), (0x1C2F0A, 314),
+    (0x1C2F42, 0), (0x1C2F48, 0), (0x1C2FA0, 0), (0x1C2FA6, 0),
+    (0x1C3006, 800), (0x1C300C, 254), (0x1C3020, 0), (0x1C3026, 0),
+    (0x1C3032, 0), (0x1C3038, 24), (0x1C303E, 800), (0x1C3044, 254),
+    (0x1C3056, 0), (0x1C305C, 314), (0x1C3098, 800), (0x1C309E, 24),
+    (0x1C30CA, 0), (0x1C30D0, 0), (0x1C30DC, 0), (0x1C30E2, 0),
+    (0x1C30E8, 800), (0x1C30EE, 24), (0x1C3100, 0), (0x1C3106, 290),
+    # tagBattlePlace@leave
+    (0x1C4504, 400),
+    # tagBattlePlace@leave2
+    (0x1C4802, 400),
+    # tagBattlePlace@calcBushoPosX
+    (0x1C681E, 182), (0x1C6824, 180), (0x1C683C, 440), (0x1C6842, 180),
+    # tagBattlePlace@calcBushoPosY
+    (0x1C6862, 322), (0x1C6868, 82),
+    # tagBattleBusho@create
+    (0x1C7408, 178), (0x1C740E, 80), (0x1C7446, 154), (0x1C744C, 0),
+    (0x1C7452, 24), (0x1C7458, 26), (0x1C7470, 154), (0x1C7476, 54),
+    (0x1C747C, 24), (0x1C7482, 26), (0x1C74A0, 0), (0x1C74A6, 0),
+    (0x1C74AC, 24), (0x1C74B2, 26), (0x1C74CA, 0), (0x1C74D0, 54),
+    (0x1C74D6, 24), (0x1C74DC, 26),
+    # tagBattleBusho@setKekka
+    (0x1C872A, 18),
+    # tagBattleBusho@_setPos
+    (0x1C8EF6, 1), (0x1C8F04, 1), (0x1C8FF0, 4), (0x1C8FFE, 4),
+    (0x1C9018, 70), (0x1C9026, 44), (0x1C9040, 69), (0x1C904E, 61),
+    (0x1C906A, 150), (0x1C9094, -1), (0x1C90A2, -1), (0x1C90C4, 109),
+    (0x1C90D2, 4), (0x1C90EC, 28), (0x1C90FA, 44), (0x1C9114, 26),
+    (0x1C9122, 61), (0x1C913E, 1), (0x1C9168, 23), (0x1C9176, -1),
+    # tagBattleName@create
+    (0x1C9398, 84), (0x1C939E, 14),
+    # tagBattleName@set
+    (0x1C940C, 14),
+    # tagBattleName@setPos
+    (0x1C9570, 57), (0x1C957C, 27),  (0x1C9596, 3),
+    (0x1C95D0, 8), (0x1C95DC, 2),
+    # tagBattleHp@create
+    (0x1C974A, 80), (0x1C9750, 17), (0x1C9812, 16),
+    # tagBattleHp@setPos
+    (0x1C9E74, 1), (0x1C9E82, 11), (0x1C9E9C, 19), (0x1C9EAA, 1),
+    (0x1C9EC4, 55), (0x1C9ED2, 1), (0x1C9EEC, 4), (0x1C9EFA, 1),
+    # tagBattleHp@drawCount
+    (0x1CA2B2, 16),
+    # tagBattleLevel@setPos
+     (0x1CA630, 3),  (0x1CA650, 175),
+    (0x1CA666, 12),  (0x1CA680, 3), (0x1CA6B2, 12),
+    (0x1CA6DC, 11), (0x1CA6EA, 1),
+    # tagBattleLevel@createBack
+    (0x1CA8B0, 11), (0x1CA8B6, 0),
+    # tagBattleWaza@create
+    (0x1CA9AE, 13), (0x1CA9B4, 17),
+    # tagBattleWaza@set
+    (0x1CABDE, 0), (0x1CABE4, 0), (0x1CABF0, 0), (0x1CABF6, 0),
+    (0x1CABFC, 13), (0x1CAC02, 17), (0x1CAC42, 0), (0x1CAC48, 0),
+    (0x1CAC54, 0), (0x1CAC5A, 0), (0x1CAC60, 13), (0x1CAC66, 17),
+    (0x1CACA6, 0), (0x1CACAC, 0), (0x1CACB8, 0), (0x1CACBE, 0),
+    (0x1CACC4, 13), (0x1CACCA, 17), (0x1CAD0A, 0), (0x1CAD10, 0),
+    (0x1CAD16, 13), (0x1CAD1C, 17),
+    # tagBattleWaza@setPos
+    (0x1CAE4A, 71), (0x1CAE56, 29),  (0x1CAE70, 62),
+    (0x1CAF18, 95), (0x1CAF24, 53),  (0x1CAF3E, 64),
+    # tagBattleFuyo@setPos
+    (0x1CB4F0, 6), (0x1CB4FC, 112),  (0x1CB516, 68),
+    # tagBattleStatus@create
+    (0x1CB6F4, 14), (0x1CB7EE, 80), (0x1CB7F4, 21), (0x1CB86C, 80),
+    (0x1CB872, 21),
+    # tagBattleStatus@setPos
+    (0x1CBC84, 70), (0x1CBC90, 28),  (0x1CBCAA, 21),
+    (0x1CBD1A, 50), (0x1CBD28, 7),
+    # tagBattleButton@add
+    (0x1CC128, 16), (0x1CC724, 134), (0x1CC72A, 20),
+    # tagBattleSequence@moveLeft
+    (0x1CF538, 289),
+    # tagBattleFlag@create
+    (0x1D0492, 100), (0x1D0498, 14),
+    # tagBattleFlag@draw
+    (0x1D05FC, 14),
+    # tagBattleFlag@moveEnd
+    (0x1D0A78, 289), (0x1D0AA6, 289),
+    # tagBattleFlag@moveInStart
+    # tagBattleFlag@setPos
+    (0x1D0F46, 9), (0x1D0F54, 8),
+    # tagBattleEffect@setPosFromBusho
+    (0x1D2102, 1), (0x1D2172, 50),
+    # tagBattleNumber@create
+    (0x1D5F42, 40), (0x1D5F48, 34),
+    # tagBattleNumber@updateDamage
+    (0x1D6B94, 40), (0x1D6B9A, 34), (0x1D6BC6, 0), (0x1D6BCC, 0),
+    (0x1D6BDE, 0), (0x1D6BE4, 40), (0x1D6BEA, 34), 
+    (0x1D6BFE, 34), (0x1D6C0A, 278), (0x1D6C3C, 40), (0x1D6C42, 34),
+    (0x1D6C80, 40), (0x1D6C86, 34), (0x1D6CC6, 40), (0x1D6CCC, 34),
+    # tagBattleNumber@updateHeal
+    (0x1D6F32, 278), (0x1D6F8C, 0), (0x1D6F92, 0), (0x1D6FA4, 0),
+    (0x1D6FAA, 40), (0x1D6FB0, 34),  (0x1D6FCA, 244),
+    (0x1D6FFA, 40), (0x1D7000, 34),
+    # tagBattleTime@create
+    (0x1D7170, 375), (0x1D7176, 326), (0x1D72A4, 1),
+    # tagBattleBar@create
+    (0x1D7B4E, 400), (0x1D7B54, 9), (0x1D7BB4, 14), (0x1D7C5C, 14),
+    # tagBattleBar@moveEnd
+     (0x1D8142, 3),
+    # tagBattleBar@move
+    # tagBattleBar@setPos
+    (0x1D83E4, 27), (0x1D83F2, 1), (0x1D840E, 219), (0x1D841C, -3),
+    (0x1D8438, 27), (0x1D8446, 12), (0x1D8460, 217), (0x1D846E, 12),
+    (0x1D8488, 24), (0x1D849E, -2),
+    # tagBattleDungeon@create
+    (0x1D89D6, 18),
+    # tagBattleDungeon@move
+    (0x1D8CC6, 500), (0x1D8D04, 500), 
+    # tagBattleMessage@create
+    (0x1D8FB4, 6), (0x1D8FBA, 33), (0x1D8FC0, 186), (0x1D8FC6, 220),
+    (0x1D8FEA, 6), (0x1D8FF0, 33), (0x1D8FF6, 186), (0x1D8FFC, 220),
+     (0x1D9050, 6),  (0x1D906A, 33),
+    (0x1D90DC, 1), (0x1D9184, 238), (0x1D9190, 200), 
+    (0x1D91B2, 10), (0x1D925A, 2), (0x1D929A, 1), (0x1D92C2, 24),
+    # tagBattleMessage@wait2
+    (0x1D9462, 13), (0x1D946E, 33), (0x1D94B0, 310), (0x1D94BE, 90),
+    (0x1D94D8, 2),
+    # tagBattleMessage@drawName
+    (0x1D95B4, 16), (0x1D96EA, 4), (0x1D96F8, 4),
+    # tagBattleStart@create
+    (0x1D982C, 0), (0x1D9832, 0), (0x1D988A, 400), (0x1D9890, 0),
+    (0x1D98E0, 374), (0x1D98E6, 256),
+    # tagBattleStart@move
+    (0x1D9A94, 400), (0x1D9AEC, 0), (0x1D9B14, 400), (0x1D9B22, 0),
+    # tagBattleMap@create
+    (0x1D9C64, 20), (0x1D9D0A, 276), (0x1D9D10, 24), (0x1D9D9A, 266),
+    (0x1D9DA0, 27), (0x1D9EAE, 34), (0x1D9ED6, 34), (0x1D9EE8, 263),
+    (0x1D9EF6, 121), (0x1D9F04, 258), (0x1D9F0A, 2),
+    # tagBattleMap@move
+    (0x1D9F9E, 141), (0x1D9FE4, 258), (0x1D9FEA, 2),
+    # tagBattleMap@setPos
+    (0x1DA03E, 4), (0x1DA04C, 4), (0x1DA068, 9), (0x1DA076, 34),
+    (0x1DA092, 9), (0x1DA0A0, 65),
+    # tagBattlePreInfo@create
+    (0x1DA1A0, 1), (0x1DA1A6, 2), (0x1DA1F2, 13), (0x1DA1F8, 7),
+    (0x1DA210, 1), (0x1DA224, 20), (0x1DA2C2, 1), (0x1DA2D6, 55),
+    (0x1DA2DC, 142),
+    # tagBattlePreInfo@set
+    (0x1DA35C, 11), (0x1DA362, 37), (0x1DA3AC, 11), (0x1DA3B2, 37),
+    # tagBattlePreInfo@drawInfo
+    (0x1DA550, 24), (0x1DA658, 142), (0x1DA662, 40), (0x1DA6D2, 108),
+    (0x1DA6D8, 39), (0x1DA6E4, 0), (0x1DA6EA, 0), (0x1DA7E8, 255),
+    (0x1DA838, 105), (0x1DA876, 31),
+    # tagBattleEnd@create
+    (0x1DACC2, 223), (0x1DACC8, 211),
+    # tagBattleUnit@moveIn
+    (0x1DBBB8, 21), 
+    # tagBattleUnit@moveOut
+    (0x1DBDD4, 21), 
+    # tagBattleUnit@createSp1
+    (0x1DC704, 0), (0x1DC70A, 0), (0x1DC87A, 0), (0x1DC880, 0),
+    # tagBattleUnit@createSp2
+    (0x1DCA78, 0), (0x1DCA7E, 0), (0x1DCEAA, 0), (0x1DCEB0, 0),
+    # tagBattleUnit@copySp
+    (0x1DD276, 0), (0x1DD27C, 0), (0x1DD288, 0), (0x1DD28E, 0),
+    (0x1DD2AC, 0), (0x1DD2B2, 0), (0x1DD308, 0), (0x1DD30E, 0),
+    (0x1DD320, 0), (0x1DD352, 0),
+]
+
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
+
