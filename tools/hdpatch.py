@@ -68,6 +68,9 @@ def _repack_one(job):
         img.save(buf, 'JPEG', quality=95)
         return ajp.encode(img.width, img.height, buf.getvalue(), orig)
     want_alpha = info.get('bpp', 24) == 32
+    if not want_alpha:
+        from PIL import Image
+        want_alpha = Image.open(png).mode in ('RGBA', 'LA', 'PA')
     return png_to_qnt(png, want_alpha, info.get('x', 0), info.get('y', 0))
 
 
