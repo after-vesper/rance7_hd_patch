@@ -160,6 +160,13 @@ def main(src_path, dst_path):
                 "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
+    for off, expected in SINGLES10:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
 
     ks = _mt_stream(0x5D3E3, len(dec))
     open(dst_path, "wb").write(bytes(b ^ k for b, k in zip(dec, ks)))
@@ -789,6 +796,20 @@ SINGLES9 = [
     (0x1F0A80, 2),                     # マーク y オフセット nY+2
     (0x1F0BE2, 154),                   # ラベル x オフセット nX+154
     (0x1F0BFC, -2),                    # ラベル y オフセット nY-2
+]
+
+# SINGLES10: 結果ダイアログ (tagSystemMessage@create) 顔/テキスト/タイトル配置
+SINGLES10 = [
+    (0x1FDBEC, 129), (0x1FDBF2, 195),  # 顔アイコン位置
+    (0x1FDC42, 7),                     # メイン文 create 行間
+    (0x1FDC54, 326), (0x1FDC5A, 199),  # メイン文 setPos
+    (0x1FDC9A, 24),                    # メイン文フォントサイズ
+    (0x1FDCFE, 2),                     # サブ文 create 行間
+    (0x1FDD10, 344), (0x1FDD16, 304),  # サブ文 setPos
+    (0x1FDD56, 24),                    # サブ文フォントサイズ
+    (0x1FDDAC, 1), (0x1FDDB2, 1),
+    (0x1FDDB8, 1), (0x1FDDBE, 1),      # サブ文シャドウ幅
+    (0x1FDE04, 130), (0x1FDE0A, 165),  # タイトルバー位置
 ]
 
 if __name__ == "__main__":
