@@ -192,6 +192,14 @@ def main(src_path, dst_path):
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
 
+    for off, expected in SINGLES14:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
     ks = _mt_stream(0x5D3E3, len(dec))
     open(dst_path, "wb").write(bytes(b ^ k for b, k in zip(dec, ks)))
     print("patched %d, skipped %d -> %s" % (patched, skipped, dst_path))
@@ -1086,6 +1094,16 @@ SINGLES13 = [
     (0x1DD276, 0), (0x1DD27C, 0), (0x1DD288, 0), (0x1DD28E, 0),
     (0x1DD2AC, 0), (0x1DD2B2, 0), (0x1DD308, 0), (0x1DD30E, 0),
     (0x1DD320, 0), (0x1DD352, 0),
+]
+
+# SINGLES14: 合戦本編 UI (tagBattleBar 紋章ブレンド位置 / tagBattleBusho 兵種アイコン / 行動回数旗列)
+SINGLES14 = [
+    # tagBattleBar@create: crest blend offsets (1,1) and (428,1)
+    (0x1D7ABC, 1), (0x1D7AC2, 1), (0x1D7B22, 428), (0x1D7B28, 1),
+    # tagBattleBusho@set: 兵種アイコン位置 baseW+155(mikata)/+7(teki), baseH+33
+    (0x1C80A4, 155), (0x1C80B0, 7), (0x1C80D0, 33),
+    # tagBattleWaza@setPos: 行動回数フラグ列 .LOCALPLUSA 65 / .LOCALMINUSA 13 (imm file offsets)
+    (0x1CAE84, 65), (0x1CAEE8, 13),
 ]
 
 if __name__ == "__main__":
