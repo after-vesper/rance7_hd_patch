@@ -132,6 +132,13 @@ def main(src_path, dst_path):
                 "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
+    for off, expected in SINGLES6:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
 
     ks = _mt_stream(0x5D3E3, len(dec))
     open(dst_path, "wb").write(bytes(b ^ k for b, k in zip(dec, ks)))
@@ -307,6 +314,10 @@ SINGLES4 = [
     (0x1B610A, 20), (0x1B616A, 20),
     # tagComment
     (0x1B62E2, 16),                 # create フォント
+    (0x1B648A, 14),                 # show 行高 (0xe*cnt)
+    (0x1B6498, 2),                  # show 行間 (2*(cnt-1))
+    (0x1B64B0, 4),                  # show 高さ余白
+    (0x1B6476, 4),                  # show 幅余白
     (0x1B6674, 4),                  # show2 幅余白
     (0x1B6688, 16),                 # show2 行高
     (0x1B6696, 4),                  # show2 高さ余白
@@ -378,9 +389,7 @@ SINGLES5 = [
     (0x1ABCFA, 1), (0x1ABD0C, 41),    # setPos 家紋オフセット (+1,+41)
     (0x1ABF9A, 34),                   # setPos 列ピッチ (+34)
     # tagComment: ホバー情報ボックス
-    (0x1B643E, 20), (0x1B6450, 20),   # show: フォント
     (0x1B64FC, 18), (0x1B650E, 7), (0x1B6520, 18),  # 行高・マージン
-    (0x1B6648, 20), (0x1B665A, 20),   # show2: フォント
     # tagCommand: カーソル位置オフセット
     (0x1B8B3A, -60),
     # tagCommandList@setSelect: 選択カーソル(member3)位置 (x-64, y-4)
@@ -552,6 +561,81 @@ SINGLES5 = [
     (0x1BA81A, 292),                    # 瓢箪アイコン Y
     # tagSystemInfo@getHyotanX: 瓢箪アイコン X (20 + 54*i)
     (0x1BAB98, 20), (0x1BAB9E, 54),
+]
+
+SINGLES6 = [
+    # tagHoryo@create: 捕虜パネル
+    (0x1B2DF0, 282), (0x1B2E04, 201),   # ウィンドウ w/h
+    (0x1B2E18, 18), (0x1B2E3C, 29), (0x1B2E42, 420), (0x1B2E66, 18),   # member2 テキスト
+    (0x1B2E54, 202),                                                    # member2 テキスト幅
+    (0x1B2EA8, 8), (0x1B2ECC, 13), (0x1B2ED2, 287), (0x1B2EF6, 20),    # member3 テキスト
+    (0x1B2EE4, 202),                                                    # member3 テキスト幅 (タイトル)
+    (0x1B305C, 56), (0x1B3062, 490),    # ボタン1 (勧誘)
+    (0x1B310A, 341), (0x1B3110, 288),   # ボタン2 (閉)
+    # tagHoryo@open/close: スライドイン (x算出の282, 26, 65, 26, 150)
+    (0x1B2CE2, 282), (0x1B2CF6, 26), (0x1B2CFE, 65), (0x1B2D04, 26), (0x1B2D0A, 150),
+    (0x1B2D7E, 282), (0x1B2D92, 26), (0x1B2D9A, 65), (0x1B2DA0, 26), (0x1B2DA6, 150),
+    # tagHoryo@drawText
+    (0x1B3684, 112), (0x1B368E, 39),    # 原点 (112,39)
+    (0x1B36C0, 24),                    # フォント
+    (0x1B3788, 31), (0x1B37E2, 31),    # 行ピッチ
+    # tagItem@create: アイテムアイコンバッファ 64x64
+    (0x1BAE34, 64), (0x1BAE3A, 64), (0x1BAED8, 64), (0x1BAEDE, 64),
+    (0x1BADB6, 44),                     # 空きスロット番号テキスト フォントサイズ
+    (0x1BB004, 64), (0x1BB00A, 64),
+    # tagItemList@create: アイテム倉庫
+    (0x1BBCA2, 282), (0x1BBCB6, 201),   # ウィンドウ w/h
+    (0x1BC09E, 202),                    # アイテムスプライト z (panel z+1 相当)
+    (0x1BBCCA, 6), (0x1BBCEE, 13), (0x1BBCF4, 287), (0x1BBD18, 20),    # member3 テキスト
+    (0x1BBD06, 202),                                                    # member3 テキスト幅 (タイトル)
+    (0x1BBDC2, 8), (0x1BBDE6, 9), (0x1BBDEC, 550), (0x1BBE10, 14),     # member4 テキスト
+    (0x1BBDFE, 202),                                                    # member4 テキスト幅
+    (0x1BBE66, 202), (0x1BBE6C, 173),   # member5 スクロールバー位置
+    (0x1BBE84, 351), (0x1BBE8A, 335),   # member5 スクロールトラック
+    # ※スクロール範囲最大行数(18)は論理値のため2倍化しない
+    (0x1BBFA4, 341), (0x1BBFAA, 288),   # member6 閉ボタン位置
+    # tagItemList@open/close: スライド (86, 572, 65, 26, 150)
+    (0x1BBBB0, 86), (0x1BBBB6, 572), (0x1BBBBC, 65), (0x1BBBC2, 26), (0x1BBBC8, 150),
+    (0x1BBC1A, 86), (0x1BBC20, 572), (0x1BBC26, 65), (0x1BBC2C, 26), (0x1BBC32, 150),
+    # tagItemList@getItemPosX/Y: グリッド (11+68c, 342+68r)
+    (0x1BDE1E, 11), (0x1BDE24, 68), (0x1BDE44, 342), (0x1BDE4A, 68),
+    # tagItemList@dragItem: ドラッグ中アイコン
+    (0x1BCEA6, 32), (0x1BCEC0, 32),     # センタリングオフセット
+    (0x1BD0C8, 64), (0x1BD0FC, 64),     # バッファサイズ
+    (0x1BD230, 376), (0x1BD236, 282),   # ドロップ判定矩形
+    # tagForce@open/close: スライド (155, 572, 65, 26, 150)
+    (0x1BF0E0, 155), (0x1BF0E6, 572), (0x1BF0EC, 65), (0x1BF0F2, 26), (0x1BF0F8, 150),
+    (0x1BF14A, 155), (0x1BF150, 572), (0x1BF156, 65), (0x1BF15C, 26), (0x1BF162, 150),
+    # tagForce@create: 兵力パネル
+    (0x1BF1C0, 282), (0x1BF1D4, 201),   # ウィンドウ w/h
+    (0x1BF1E8, 13), (0x1BF1EE, 287), (0x1BF1F4, 202),    # タイトルバー (13,287,202)
+    (0x1BF206, 185), (0x1BF20C, 343), (0x1BF212, 202),   # ボタン 補充 (185,343)
+    (0x1BF242, 185), (0x1BF248, 411), (0x1BF24E, 202),   # ボタン 増員 (185,411)
+    (0x1BF27E, 185), (0x1BF284, 479), (0x1BF28A, 202),   # ボタン 解雇 (185,479)
+    (0x1BF2BC, 44), (0x1BF2C2, 16),     # member8 バッファ
+    (0x1BF2EE, 318), (0x1BF2F4, 538),   # member8 位置
+    (0x1BF31C, 177), (0x1BF322, 16), (0x1BF32E, 79), (0x1BF334, 41), (0x1BF33A, 179),  # member9 tagNumberList
+    (0x1BF34E, 10), (0x1BF354, 530),    # member9 位置
+    (0x1BF45C, 56), (0x1BF462, 147),    # member12 ボタン群1 (一発補充)
+    (0x1BF50A, 299), (0x1BF510, 286),   # member12 ボタン群2 (決)
+    # tagForceFull@create: 一発補充パネル
+    (0x1BE110, 13), (0x1BE116, 7),      # タイトルバー (13,7)
+    # tagForceFull@drawText
+    (0x1BE518, 112), (0x1BE522, 39),    # 原点 (112,39)
+    (0x1BE554, 24),                    # フォント
+    (0x1BE61C, 31), (0x1BE676, 31),    # 行ピッチ
+    # tagForceGold@create: コスト/金 CG位置
+    (0x1BE76A, 242), (0x1BE770, 529),
+    (0x1BE7A8, 223), (0x1BE7AE, 533),
+    (0x1BE7EA, 223), (0x1BE7F0, 533),
+    # tagForceScroll@create: +/-スクローラ バッファ・オフセット
+    (0x1BEA36, 182), (0x1BEA3C, 16),    # member4 バッファ
+    (0x1BEAA6, 182), (0x1BEAAC, 20),    # member5 バッファ
+    (0x1BEA7C, 20),                    # member4 Yオフセット
+    # フォント
+    (0x1BEE2E, 14),                    # tagForceScroll@setText
+    (0x1C05DE, 14),                    # tagForce@set
+    (0x1C0AAC, 14),                    # tagForce@setInfo
 ]
 
 if __name__ == "__main__":
