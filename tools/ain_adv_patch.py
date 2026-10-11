@@ -153,6 +153,13 @@ def main(src_path, dst_path):
                 "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
+    for off, expected in SINGLES9:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
 
     ks = _mt_stream(0x5D3E3, len(dec))
     open(dst_path, "wb").write(bytes(b ^ k for b, k in zip(dec, ks)))
@@ -774,6 +781,14 @@ SINGLES8 = [
     (0x199FB8, 316), (0x199FBE, 26),   # member1 転写元サイズ
     (0x19A0A6, 3), (0x19A0AC, 3),      # member2 転写先オフセット
     (0x19A0CC, 316), (0x19A0D2, 26),   # member2 転写元サイズ
+]
+
+# SINGLES9: 武将詳細パネル (tagBushoRelation@create) 感情マーク/ラベル配置
+SINGLES9 = [
+    (0x1F0A66, 1),                     # マーク x オフセット nX+1
+    (0x1F0A80, 2),                     # マーク y オフセット nY+2
+    (0x1F0BE2, 154),                   # ラベル x オフセット nX+154
+    (0x1F0BFC, -2),                    # ラベル y オフセット nY-2
 ]
 
 if __name__ == "__main__":
