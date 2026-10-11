@@ -167,6 +167,13 @@ def main(src_path, dst_path):
                 "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
+    for off, expected in SINGLES11:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
 
     ks = _mt_stream(0x5D3E3, len(dec))
     open(dst_path, "wb").write(bytes(b ^ k for b, k in zip(dec, ks)))
@@ -810,6 +817,15 @@ SINGLES10 = [
     (0x1FDDAC, 1), (0x1FDDB2, 1),
     (0x1FDDB8, 1), (0x1FDDBE, 1),      # サブ文シャドウ幅
     (0x1FDE04, 130), (0x1FDE0A, 165),  # タイトルバー位置
+]
+
+# SINGLES11: 起動シーケンス (ShowAliceLogo/ShowWarningScreen) 背景・マスク帯
+SINGLES11 = [
+    (0x2142D0, 800), (0x2142D6, 600),  # AliceLogo 白背景スプライトサイズ
+    (0x2142F4, 800), (0x2142FA, 600),  # AliceLogo 白背景塗りつぶし矩形
+    (0x213EFC, 800), (0x213F02, 94),   # 注意文 黒マスク帯スプライトサイズ
+    (0x213F20, 800), (0x213F26, 94),   # 注意文 黒マスク帯塗りつぶし矩形
+    (0x213F50, 506),                   # 注意文 黒マスク帯 y 位置
 ]
 
 if __name__ == "__main__":
