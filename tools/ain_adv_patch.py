@@ -693,6 +693,16 @@ SINGLES6 = [
     (0x1B3684, 112), (0x1B368E, 39),    # 原点 (112,39)
     (0x1B36C0, 24),                    # フォント
     (0x1B3788, 31), (0x1B37E2, 31),    # 行ピッチ
+    # tagDungeon@create: 階層移動確認ダイアログ
+    (0x1B3B48, 10), (0x1B3B4E, 36), (0x1B3B54, 568), (0x1B3B5A, 312),  # member3 window (x,y,w,h)
+    (0x1B3B7A, 4), (0x1B3B80, 4),      # member3 CG offset
+    (0x1B3B92, 8), (0x1B3B98, 8), (0x1B3B9E, 577), (0x1B3BA4, 25), (0x1B3BAA, 20),  # createName
+    (0x1B3DBA, 51), (0x1B3DC0, 374),   # member4 tagSelect pos
+    # tagDungeon@open/close: zoomUp/zoomDown (51, 374+h-26, 65, 26, 150) + wait 100
+    (0x1B3932, 51), (0x1B3938, 374), (0x1B394C, 26),
+    (0x1B3954, 65), (0x1B395A, 26), (0x1B3960, 150), (0x1B38C2, 100),
+    (0x1B3A22, 51), (0x1B3A28, 374), (0x1B3A3C, 26),
+    (0x1B3A44, 65), (0x1B3A4A, 26), (0x1B3A50, 150), (0x1B3A6A, 100),
     # tagItem@create: アイテムアイコンバッファ 64x64
     (0x1BAE34, 64), (0x1BAE3A, 64), (0x1BAED8, 64), (0x1BAEDE, 64),
     (0x1BADB6, 44),                     # 空きスロット番号テキスト フォントサイズ
@@ -1117,10 +1127,17 @@ SINGLES13 = [
     (0x1D83E4, 27), (0x1D83F2, 1), (0x1D840E, 219), (0x1D841C, -3),
     (0x1D8438, 27), (0x1D8446, 12), (0x1D8460, 217), (0x1D846E, 12),
     (0x1D8488, 24), (0x1D849E, -2),
-    # tagBattleDungeon@create
+    # tagBattleDungeon@create: metrics nSize (0x1D89D6) plus the fontsize
+    # args used for layout math (centerX/normalizeTextY/getTextWidth) —
+    # leaving them at 18 draws the digits half a text-width off, on top of
+    # the name itself. nY+=1 baseline tweak doubled as well.
     (0x1D89D6, 18),
-    # tagBattleDungeon@move
-    (0x1D8CC6, 500), (0x1D8D04, 500), 
+    (0x1D8A62, 18), (0x1D8A90, 18), (0x1D8AE0, 18), (0x1D8B4C, 18),
+    (0x1D8B02, 1),
+    # tagBattleDungeon@move/Start/End: plate X=174->348, rest Y=3->6
+    (0x1D8CC6, 500), (0x1D8D04, 500),
+    (0x1D8C06, 3), (0x1D8C20, 174), (0x1D8C26, 3),
+    (0x1D8C70, 174), (0x1D8C76, 3), (0x1D8CE8, 3), (0x1D8D28, 174),
     # tagBattleMessage@create: portrait pos (bRight 0x24e : 0xc, nY=0x2f),
     # face x-nudge for cgNo==99, msg box nY=0xea, text offsets (0xd/0x21, 9),
     # text metrics spacing (13, 4)
