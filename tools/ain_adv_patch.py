@@ -1160,11 +1160,13 @@ SINGLES13 = [
     # tagBattlePreInfo@set
     (0x1DA35C, 11), (0x1DA362, 37), (0x1DA3AC, 11), (0x1DA3B2, 37),
     # tagBattlePreInfo@drawInfo
-    # NOTE: 0x1DA7E8 (PUSH 0xff used in "0xff / n" alpha math) is a color
-    # range, not pixels. It must not be doubled.
+    # 0x1DA7E8 (PUSH 0xff) is the numerator of "255 / fontSize" which yields
+    # the per-line byte budget for splitText (FUNC 1500 doubles it again,
+    # so it effectively encodes the ~255px text field width in byte units).
+    # It must be doubled along with the font size.
     (0x1DA550, 24), (0x1DA658, 142), (0x1DA662, 40), (0x1DA6D2, 108),
     (0x1DA6D8, 39), (0x1DA6E4, 0), (0x1DA6EA, 0),
-    (0x1DA838, 105), (0x1DA876, 31),
+    (0x1DA838, 105), (0x1DA876, 31), (0x1DA7E8, 255),
     # tagBattleEnd@create: frame pos (223,211) and territory-icon
     # column base pos (267,217) x2 lists
     (0x1DACC2, 223), (0x1DACC8, 211),
