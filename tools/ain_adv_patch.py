@@ -256,6 +256,14 @@ def main(src_path, dst_path):
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
 
+    for off, expected in SINGLES22:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
     for lo, hi, pat in PRE2_PATCH:
         i = lo
         while True:
@@ -1366,6 +1374,58 @@ SINGLES21 = [
     (0x201E98, 0x18), (0x201F10, 0x18),
     (0x201F48, 0x212), (0x201F52, 0x1d), (0x201F66, 0x63),
     (0x202018, 547),
+]
+
+# SINGLES22: CGモード画面 (tagCgMode / tagCgModeData / tagCgModeLight)
+# パネル背景 cg10701 (800x568)、セル枠 cg10704、サムネイル cg61xxx は
+# ALD側で2x化済み。tagScrollBar/tagComment 内部は SINGLES4 で対応済みのため
+# ここでは呼び出し側の座標・フォント・矩形のみを2倍化する。
+SINGLES22 = [
+    # tagCgMode@create: 「CGモード」ヘッダ位置 / フォントサイズ
+    (0x205F7E, 33), (0x205F84, 10),
+    (0x205FA8, 20),
+    # tagCgMode@create: ページ表示位置 / フォントサイズ
+    (0x2060C2, 29), (0x2060C8, 545),
+    (0x2060EC, 14),
+    # tagCgMode@create: スクロールバー長(469) / 位置(755,34)
+    (0x20615E, 469),
+    (0x206176, 755), (0x20617C, 34),
+    # tagCgMode@create: 閉ボタン位置 (745,11)
+    (0x2062AE, 745), (0x2062B4, 11),
+    # tagCgMode@getDataPosX/getDataPosY: セルグリッド原点・ピッチ
+    #   X = 91 + 166*col,  Y = 37 + 126*row
+    (0x207B64, 91), (0x207B6A, 166),
+    (0x207B8A, 37), (0x207B90, 126),
+    # tagCgModeData@create: セル番号フォント32 / 影ピクセル(0,1,0,1)
+    (0x20450A, 32),
+    (0x204566, 1), (0x204572, 1),
+    # tagCgModeData@clear: ヒット矩形 nH=63 / 166x126
+    (0x204820, 63),
+    (0x20483C, 166), (0x204842, 126),
+    (0x204860, 166), (0x204884, 166),
+    # tagCgModeData@setPos: サムネ+3 / 番号(+106,+85) /
+    #   ボタン(+31,+24/+67 または +45) / nH=63 / 矩形 166x126
+    (0x204A78, 3), (0x204A86, 3),
+    (0x204AA2, 106), (0x204AB0, 85),
+    (0x204AD6, 31), (0x204B0E, 24), (0x204B6C, 67), (0x204BD0, 45),
+    (0x204C28, 63),
+    (0x204C44, 166), (0x204C4A, 126),
+    (0x204C68, 166), (0x204C94, 166),
+    # tagCgModeData@createThumb: 代替サムネイル 160x120 / フォント12
+    (0x204EFE, 12),
+    (0x204F7C, 160), (0x204F82, 120),
+    (0x204FA2, 160), (0x204FA8, 120),
+    (0x204FCC, 1), (0x204FD2, 1), (0x204FD8, 158), (0x204FDE, 118),
+    # tagCgModeLight@create: カーソル位置(24,38) / ヒット矩形(24,39,64,15)
+    #   行送り nY+=15
+    (0x205206, 24), (0x20520C, 38),
+    (0x2052AE, 24), (0x2052B8, 39), (0x205308, 64), (0x20530E, 15),
+    (0x205322, 15),
+    # tagCgModeLight@setPage: カーソル位置 (24, 38+15*line)
+    (0x20577C, 24), (0x205782, 38), (0x205788, 15),
+    # tagCgModeLight@getPosX/getPosY: ドット位置 28+15c / 42+15r
+    (0x2059C2, 28), (0x2059C8, 15),
+    (0x205A5A, 42), (0x205A60, 15),
 ]
 
 # PRE2_PATCH: 指定CALLMETHODの直前2個のPUSH即値を2倍化する
