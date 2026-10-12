@@ -1191,6 +1191,13 @@ SINGLES13 = [
     (0x1DAD52, 267), (0x1DAD58, 217),
     # tagBattlePlace@change: row-advance animation distance 180 (nSize)
     (0x1C5000, 180),
+    # tagBattlePlace@leave/leave2: replacement-unit slide-in distance
+    # (moveSize arg 0x190 to tagBattleBusho@moveStart for the new unit).
+    # The dead-unit slide-out at 0x1C4504/0x1C4802 is already doubled, so
+    # the replacement starts at slot-800; without this it slides only
+    # +400 and snaps +400 at the end.
+    (0x1C45CA, 400),
+    (0x1C4B10, 400),
     # NOTE: tagBattleUnit@moveIn/moveOut compare m_nBushoNo < 0x15 (unit-ID
     # boundary, not pixels). Must NOT be doubled or enemy units enter from left.
     # tagBattleUnit@createSp1
