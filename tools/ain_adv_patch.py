@@ -264,6 +264,14 @@ def main(src_path, dst_path):
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
 
+    for off, expected in SINGLES23:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
     for lo, hi, pat in PRE2_PATCH:
         i = lo
         while True:
@@ -1426,6 +1434,51 @@ SINGLES22 = [
     # tagCgModeLight@getPosX/getPosY: ドット位置 28+15c / 42+15r
     (0x2059C2, 28), (0x2059C8, 15),
     (0x205A5A, 42), (0x205A60, 15),
+]
+
+# SINGLES23: 音楽モード画面 (tagMusicMode / tagMusicModeData / tagMusicBar)
+# パネル cg10711 (800x568)・中央パネル cg10712・バー cg10713・
+# ボタン cg10714-10717 は ALD側で2x化済み。
+SINGLES23 = [
+    # tagMusicModeData@create: 行スプライト 401x34 (通常/選択の2枚) / フォント24
+    (0x208270, 24),
+    (0x208322, 401), (0x208328, 34),
+    (0x2083E6, 401), (0x2083EC, 34),
+    # tagMusicBar@create: バー表面 385x6
+    (0x20881C, 385), (0x208822, 6),
+    # tagMusicBar@animeStart/anime: スライド開始 -77 / 移動量 770
+    (0x2088D6, -77),
+    (0x2089D4, -77), (0x2089DA, 770),
+    # tagMusicBar@setBar: 塗り計算 385/308/-77 / 高さ6 / setPos y=116
+    (0x208A4E, 385), (0x208A54, 6), (0x208A6C, 308), (0x208A88, -77),
+    (0x208A9C, 385), (0x208ABC, 385), (0x208AC8, 308),
+    (0x208B02, 6), (0x208B26, 116),
+    # tagMusicMode@create: 中央パネル cg10712 位置 (83,135)
+    (0x2092F0, 83), (0x2092F6, 135),
+    # 「音楽モード」タイトル位置 (101,10) / フォント20
+    (0x209356, 101), (0x20935C, 10), (0x209380, 20),
+    # スクロールバー: create maxSize 271 / setPos (699,132)
+    (0x209456, 271),
+    (0x20946E, 699), (0x209474, 132),
+    # 操作ボタン: 再生(310,451) 停止(451,451) 前(535,451) 次(619,451) 閉(689,82)
+    (0x209518, 310), (0x20951E, 451),
+    (0x209538, 451), (0x20953E, 451),
+    (0x209558, 535), (0x20955E, 451),
+    (0x209578, 619), (0x20957E, 451),
+    (0x209598, 689), (0x20959E, 82),
+    # createList呼出引数: x=97 / y=40+12*i
+    (0x20972C, 97), (0x209732, 40), (0x209738, 12),
+    # createList: 行フォント12 / 行スプライト 196x12 x3 / ハイライト 196x11
+    (0x209910, 12),
+    (0x20998E, 196), (0x209994, 12),
+    (0x2099E0, 196), (0x2099E6, 12),
+    (0x209A1E, 196), (0x209A24, 11),
+    (0x209A54, 196), (0x209A5A, 11),
+    (0x209AD4, 196), (0x209ADA, 12),
+    # setDataPos: カレント+上下4行 (298,271) / ピッチ34
+    (0x208EC0, 298), (0x208EC6, 271),
+    (0x208FA8, 298), (0x208FAE, 271), (0x208FB4, 34),
+    (0x209094, 298), (0x20909A, 271), (0x2090A0, 34),
 ]
 
 # PRE2_PATCH: 指定CALLMETHODの直前2個のPUSH即値を2倍化する
