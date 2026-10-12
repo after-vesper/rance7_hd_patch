@@ -728,7 +728,9 @@ SINGLES6 = [
     (0x1BF27E, 185), (0x1BF284, 479), (0x1BF28A, 202),   # ボタン 解雇 (185,479)
     (0x1BF2BC, 44), (0x1BF2C2, 16),     # member8 バッファ
     (0x1BF2EE, 318), (0x1BF2F4, 538),   # member8 位置
-    (0x1BF31C, 177), (0x1BF322, 16), (0x1BF32E, 79), (0x1BF334, 41), (0x1BF33A, 179),  # member9 tagNumberList
+    # NOTE: member9 tagNumberList createCanvas(177,16, r2,g79,b41,a179) -
+    # only w/h are pixels; the r/g/b/a color args must not be doubled.
+    (0x1BF31C, 177), (0x1BF322, 16),
     (0x1BF34E, 10), (0x1BF354, 530),    # member9 位置
     (0x1BF45C, 56), (0x1BF462, 147),    # member12 ボタン群1 (一発補充)
     (0x1BF50A, 299), (0x1BF510, 286),   # member12 ボタン群2 (決)
@@ -982,11 +984,13 @@ SINGLES13 = [
     (0x1C217E, 42), (0x1C2184, 278), (0x1C21BA, 598), (0x1C21C0, 278),
     (0x1C2296, 42), (0x1C22AE, 598),
     # tagBattle@fillSpotMask
+    # NOTE: the 0x80 mask-fill values are alpha levels, not pixels. Doubling
+    # them to 256 clamps to opaque and paints the card icon tab solid black.
     (0x1C2D26, 320), (0x1C2D44, 178), (0x1C2D4A, 80), (0x1C2D50, 0),
-    (0x1C2D7A, 154), (0x1C2D88, 24), (0x1C2D8E, 26), (0x1C2D94, 128),
+    (0x1C2D7A, 154), (0x1C2D88, 24), (0x1C2D8E, 26),
     (0x1C2DAC, 154), (0x1C2DBA, 54), (0x1C2DC2, 24), (0x1C2DC8, 26),
-    (0x1C2DCE, 128), (0x1C2DFA, 24), (0x1C2E00, 26), (0x1C2E06, 128),
-    (0x1C2E2C, 54), (0x1C2E34, 24), (0x1C2E3A, 26), (0x1C2E40, 128),
+    (0x1C2DFA, 24), (0x1C2E00, 26),
+    (0x1C2E2C, 54), (0x1C2E34, 24), (0x1C2E3A, 26),
     # tagBattleBase@create
     (0x1C2E9C, 800), (0x1C2EA2, 314), (0x1C2EB6, 0), (0x1C2EBC, 0),
     (0x1C2EF8, 0), (0x1C2EFE, 0), (0x1C2F04, 800), (0x1C2F0A, 314),
@@ -1068,6 +1072,8 @@ SINGLES13 = [
     (0x1D05FC, 14),
     # tagBattleFlag@moveEnd
     (0x1D0A78, 289), (0x1D0AA6, 289),
+    # tagBattleFlag@moveStart: auto moveSize 0x19/0x64, mode1 dest nY=314
+    (0x1D08E4, 25), (0x1D0934, 100), (0x1D0992, 314),
     # tagBattleFlag@moveInStart
     # tagBattleFlag@setPos
     (0x1D0F46, 9), (0x1D0F54, 8),
@@ -1142,8 +1148,10 @@ SINGLES13 = [
     # tagBattlePreInfo@set
     (0x1DA35C, 11), (0x1DA362, 37), (0x1DA3AC, 11), (0x1DA3B2, 37),
     # tagBattlePreInfo@drawInfo
+    # NOTE: 0x1DA7E8 (PUSH 0xff used in "0xff / n" alpha math) is a color
+    # range, not pixels. It must not be doubled.
     (0x1DA550, 24), (0x1DA658, 142), (0x1DA662, 40), (0x1DA6D2, 108),
-    (0x1DA6D8, 39), (0x1DA6E4, 0), (0x1DA6EA, 0), (0x1DA7E8, 255),
+    (0x1DA6D8, 39), (0x1DA6E4, 0), (0x1DA6EA, 0),
     (0x1DA838, 105), (0x1DA876, 31),
     # tagBattleEnd@create
     (0x1DACC2, 223), (0x1DACC8, 211),
