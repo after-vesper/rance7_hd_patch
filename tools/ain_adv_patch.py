@@ -1170,6 +1170,8 @@ SINGLES13 = [
     (0x1DACC2, 223), (0x1DACC8, 211),
     (0x1DAC96, 267), (0x1DAC9C, 217),
     (0x1DAD52, 267), (0x1DAD58, 217),
+    # tagBattlePlace@change: row-advance animation distance 180 (nSize)
+    (0x1C5000, 180),
     # NOTE: tagBattleUnit@moveIn/moveOut compare m_nBushoNo < 0x15 (unit-ID
     # boundary, not pixels). Must NOT be doubled or enemy units enter from left.
     # tagBattleUnit@createSp1
