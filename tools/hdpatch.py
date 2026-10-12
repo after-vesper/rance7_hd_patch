@@ -52,6 +52,11 @@ def qnt_to_png(payload, path):
 def _extract_one(job):
     """ワーカー: (payload, path, name) -> manifest エントリ用タプル。"""
     payload, path, name = job
+    if name.lower().endswith('.ajp'):
+        img = ajp.decode_rgba(payload)
+        img.save(path)
+        return name, {'w': img.width, 'h': img.height,
+                      'bpp': 32 if img.mode == 'RGBA' else 24}
     w, h, bpp = qnt_to_png(payload, path)
     x, y = struct.unpack_from('<II', payload, 0x0C)
     return name, {'w': w, 'h': h, 'bpp': bpp, 'x': x, 'y': y}
@@ -61,12 +66,23 @@ def _repack_one(job):
     """ワーカー: (kind, pngパス, manifest値, 原本bytes) -> 差し替えバイト列"""
     kind, png, info, orig = job
     if kind == 'ajp':
-        # AJP: PNG -> JPEG(品質95) -> 原本ヘッダをテンプレートに再エンコード
+        # AJP: PNG -> JPEG(品質95) -> 原本ヘッダをテンプレートに再エンコード。
+        # 原本に PM マスクがあれば PNG のアルファから再生成して保持する。
         from PIL import Image
-        img = Image.open(png).convert('RGB')
+        _, _, _, asec = ajp.decode(orig)
+        img = Image.open(png)
+        alpha = None
+        if asec is not None:
+            if img.mode != 'RGBA':
+                raise ValueError(
+                    '%s: original has alpha mask but PNG is %s'
+                    % (png, img.mode))
+            alpha = img.getchannel('A').tobytes()
+        rgb = img.convert('RGB')
         buf = io.BytesIO()
-        img.save(buf, 'JPEG', quality=95)
-        return ajp.encode(img.width, img.height, buf.getvalue(), orig)
+        rgb.save(buf, 'JPEG', quality=95)
+        return ajp.encode(img.width, img.height, buf.getvalue(),
+                          alpha, orig)
     want_alpha = info.get('bpp', 24) == 32
     if not want_alpha:
         from PIL import Image
@@ -99,7 +115,8 @@ def cmd_extract(args):
     n_skip = 0
     pat = re.compile(args.filter, re.I) if args.filter else None
     for off, hsize, dsize, name, _ in entries:
-        if name.lower().endswith('.qnt') and (not pat or pat.search(name)):
+        if (name.lower().endswith(('.qnt', '.ajp'))
+                and (not pat or pat.search(name))):
             jobs.append((data[off + hsize:off + hsize + dsize],
                          os.path.join(args.outdir, name[:-4] + '.png'),
                          name))
@@ -116,7 +133,7 @@ def cmd_extract(args):
     with open(os.path.join(args.outdir, 'manifest.json'), 'w',
               encoding='utf-8') as f:
         json.dump(manifest, f, ensure_ascii=False, indent=1)
-    print(f'QNT {len(jobs)} 件をPNG化、その他 {n_skip} 件スキップ -> {args.outdir}')
+    print(f'{len(jobs)} 件をPNG化、その他 {n_skip} 件スキップ -> {args.outdir}')
 
 
 def _iter_pngs(indir):

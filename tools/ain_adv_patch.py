@@ -1165,8 +1165,11 @@ SINGLES13 = [
     (0x1DA550, 24), (0x1DA658, 142), (0x1DA662, 40), (0x1DA6D2, 108),
     (0x1DA6D8, 39), (0x1DA6E4, 0), (0x1DA6EA, 0),
     (0x1DA838, 105), (0x1DA876, 31),
-    # tagBattleEnd@create
+    # tagBattleEnd@create: frame pos (223,211) and territory-icon
+    # column base pos (267,217) x2 lists
     (0x1DACC2, 223), (0x1DACC8, 211),
+    (0x1DAC96, 267), (0x1DAC9C, 217),
+    (0x1DAD52, 267), (0x1DAD58, 217),
     # NOTE: tagBattleUnit@moveIn/moveOut compare m_nBushoNo < 0x15 (unit-ID
     # boundary, not pixels). Must NOT be doubled or enemy units enter from left.
     # tagBattleUnit@createSp1
