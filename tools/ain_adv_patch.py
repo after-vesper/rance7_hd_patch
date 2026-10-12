@@ -240,6 +240,14 @@ def main(src_path, dst_path):
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
 
+    for off, expected in SINGLES20:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
     for lo, hi, pat in PRE2_PATCH:
         i = lo
         while True:
@@ -1308,6 +1316,24 @@ SINGLES19 = [
     (0x1D68AA, 20), (0x1D68CC, 68), (0x1D6CFE, 40),
     # tagBattleNumber@updateHeal: アニメオフセット 68 / 桁ピッチ40
     (0x1D6D1E, 68), (0x1D7022, 40),
+]
+
+# SINGLES20: タイトル背景スクロール復元 (tagTitleBack / tagTitle@create)
+# ベイク済みcg12504を半透明ヴェール原本に戻してパノラマスクロールを再表示する。
+# ピクセルバッファ 800x600 -> 1600x1200, ラップ境界 1600 -> 3200 に合わせる
+# (cg12501/12502 は 3200x1200 に2x化済み)。
+SINGLES20 = [
+    # tagTitle@create: スクロール速度 nSize (A=1, B=3 px/100ms)
+    (0x1FF538, 1), (0x1FF566, 3),
+    # tagTitle@create: cg12500 ロゴ setPos y=60 / 雷エフェクト setPos y=18
+    (0x1FF5FE, 0x3c), (0x1FF65A, 0x12),
+    # tagTitleBack@create: ピクセルバッファ 800x600
+    (0x20048E, 0x320), (0x200494, 0x258),
+    # tagTitleBack@moveLeft/moveRight: パノラマ幅ラップ境界 1600
+    (0x200772, 0x640), (0x20078E, 0x640), (0x2008A0, 0x640),
+    # tagTitleBack@copyBack: コピー幅800 / 高600 / 境界1600
+    (0x20092C, 0x320), (0x200936, 0x258),
+    (0x200942, 0x320), (0x20094A, 0x640), (0x20099C, 0x640),
 ]
 
 # PRE2_PATCH: 指定CALLMETHODの直前2個のPUSH即値を2倍化する
