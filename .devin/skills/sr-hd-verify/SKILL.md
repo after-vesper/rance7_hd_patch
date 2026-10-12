@@ -84,10 +84,18 @@ cancelled), so never click it by mistake.
    **(310, 28)** (verified).
 7. Attack prep screen (攻撃戦): formation slots left, officer list right.
    - Drag an officer: ランス row PNG **(830, 295)** → slot PNG **(545, 915)**
+     (canvas 827,228 → 542,848). IMPORTANT: the grab must start on the
+     row's RIGHT side (部隊人数/行動 columns around PNG x830), NOT on the
+     name column (~PNG x415) — grabbing the name does nothing. Also
+     `cdrag.ps1` (canvas coords) has failed repeatedly even with
+     cursor-verified endpoints; use `drag.ps1` (PNG coords) for this
+     drag — it is the only variant that has actually placed an officer.
    - `斥候` (scout selection) button = canvas **(540, 585)** (verified
      via cursorcap; an earlier recorded value (522,668) was a
      display-scaled coordinate and missed below the button)
-   - `決定` proceeds to the battle (合戦本編).
+   - `決定` = canvas **(667, 610)** (button row at the bottom of the
+     formation panel, right of 斥候; verified via cursorcap highlight).
+     Click proceeds to the `対` screen, then click again for 合戦本編.
 
 ## Reaching the tutorial battle (はじめから route)
 
@@ -124,14 +132,24 @@ appear in the screenshot.
    is around PNG **(53,330)** / **(40,455)**.
 6. If the `ターンを終了しますか？` dialog appears, `いいえ` is at PNG
    **(675*1.55≈1050, 905)** — i.e. scale displayed coords ×1.553 to PNG.
-7. Action menu `合戦：魔軍と合戦（攻め込む）` ≈ PNG **(400, 165)**.
+7. Action menu `合戦：魔軍と合戦（攻め込む）` is the TOP item ≈ PNG
+   **(400, 165)**. Picking `建設：次の合戦の準備` by mistake opens the
+   参加武将選択（事前準備）screen instead — that is NOT the formation
+   screen; close it with `閉` and re-pick the top item.
 8. On the attack prep screen `斥候` ≈ PNG **(260, 402)** (half of the HD
    coords since canvas is 800x600).
+9. Vanilla formation drag-and-drop was NOT automated reliably (the
+   800x600 slot targets are small and every scripted drag/click missed).
+   For vanilla reference shots, place officers manually or capture only
+   screens before placement.
 
 ## Vanilla reference capture
 
-To compare with the unpatched layout, temporarily swap in the originals
-(back up first — note `*.bak` files are NOT pristine, `*.orig` are):
+To compare with the unpatched layout, swap BOTH the ain AND the GM ald —
+swapping only the ain leaves HD-patched CGs under vanilla layout (or vice
+versa: vanilla ALDs + patched ain gave a broken title with 1x logo and
+truncated buttons). `*.hd_cur` files are the current HD builds,
+`*.orig` the pristine ones (note `*.bak` files are NOT pristine):
 
 ```powershell
 Copy-Item game/Rance7.ain game/Rance7.ain.hd_cur -Force

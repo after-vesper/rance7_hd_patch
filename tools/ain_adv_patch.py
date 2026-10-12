@@ -216,6 +216,44 @@ def main(src_path, dst_path):
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
 
+    for off, expected in SINGLES17:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
+    for off, expected in SINGLES18:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
+    for off, expected in SINGLES19:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
+    for lo, hi, pat in PRE2_PATCH:
+        i = lo
+        while True:
+            j = dec.find(pat, i, hi)
+            if j < 0:
+                break
+            if dec[j - 12:j - 10] != PUSH_OP or dec[j - 6:j - 4] != PUSH_OP:
+                raise SystemExit("直前がPUSHでない @0x%x" % j)
+            for k in (j - 10, j - 4):
+                old = struct.unpack_from("<i", dec, k)[0]
+                struct.pack_into("<i", dec, k, old * 2)
+                patched += 1
+            i = j + len(pat)
+
     ks = _mt_stream(0x5D3E3, len(dec))
     open(dst_path, "wb").write(bytes(b ^ k for b, k in zip(dec, ks)))
     print("patched %d, skipped %d -> %s" % (patched, skipped, dst_path))
@@ -1050,8 +1088,19 @@ SINGLES13 = [
     (0x1D7170, 375), (0x1D7176, 326), (0x1D72A4, 1),
     # tagBattleBar@create
     (0x1D7B4E, 400), (0x1D7B54, 9), (0x1D7BB4, 14), (0x1D7C5C, 14),
+    # tagBattleBar@moveStart: y start offset 3, home x 0xad=173, y 3
+    (0x1D80D2, 3), (0x1D80EC, 173), (0x1D80F2, 3),
     # tagBattleBar@moveEnd
-     (0x1D8142, 3),
+    (0x1D813C, 173), (0x1D8142, 3),
+    # tagBattleBar@move: nY base 3, clamp 3, home x 0xad=173
+    (0x1D81B4, 3), (0x1D81E4, 3), (0x1D81F4, 173),
+    # tagBattleBar@createBar: fill h 9, enemy width base 400, marker +0x18/-2
+    (0x1D861C, 9), (0x1D864C, 400), (0x1D865A, 9),
+    (0x1D867A, 24), (0x1D86A2, -2),
+    # tagBattleBar@calcBarSize: default 200x2, bar total width 0x190 x5
+    (0x1D8762, 200), (0x1D8774, 200),
+    (0x1D878C, 400), (0x1D87AE, 400), (0x1D87D6, 400),
+    (0x1D8800, 400), (0x1D8820, 400),
     # tagBattleBar@move
     # tagBattleBar@setPos
     (0x1D83E4, 27), (0x1D83F2, 1), (0x1D840E, 219), (0x1D841C, -3),
@@ -1098,10 +1147,8 @@ SINGLES13 = [
     (0x1DA838, 105), (0x1DA876, 31),
     # tagBattleEnd@create
     (0x1DACC2, 223), (0x1DACC8, 211),
-    # tagBattleUnit@moveIn
-    (0x1DBBB8, 21), 
-    # tagBattleUnit@moveOut
-    (0x1DBDD4, 21), 
+    # NOTE: tagBattleUnit@moveIn/moveOut compare m_nBushoNo < 0x15 (unit-ID
+    # boundary, not pixels). Must NOT be doubled or enemy units enter from left.
     # tagBattleUnit@createSp1
     (0x1DC704, 0), (0x1DC70A, 0), (0x1DC87A, 0), (0x1DC880, 0),
     # tagBattleUnit@createSp2
@@ -1146,6 +1193,79 @@ SINGLES16 = [
     (0x1AF8C4, 105), (0x1AF8CA, 155), (0x1AF8D0, 24), (0x1AF93A, 260),
     # tagSankaList@dragBusho: drag ghost center offset (32,36) + slot size (65,72)
     (0x1AE378, 32), (0x1AE392, 36), (0x1AE5A2, 65), (0x1AE5D6, 72),
+]
+
+# SINGLES17: 合戦本編 行動順フラグ列 (tagBattleSequence/tagBattleFlag)
+SINGLES17 = [
+    # tagBattleSequence@getPosX/getPosY: フラグピッチ100 / 行Y=289
+    (0x1D01A0, 100), (0x1D01C0, 289),
+    # tagBattleFlag@moveInStart/moveIn: 退避X=800 / 速度係数150
+    (0x1D0D8C, 800), (0x1D0E86, 800), (0x1D0E9A, 150),
+]
+
+# SINGLES18: 合戦本編 兵士グループ (tagBattleUnit)
+SINGLES18 = [
+    # tagBattleUnit@getBlendNormal: 単数ユニットの中心座標 (410,257)
+    (0x1DD3EA, 410), (0x1DD3FE, 257),
+    # tagBattleUnit@getBlendAttack: 攻撃時補正 30
+    (0x1DD5A2, 30),
+    # tagBattleTime@create: 残りターンピップ初期位置 (379,326) と縦ピッチ 10
+    (0x1D71A6, 379), (0x1D71B0, 326), (0x1D72BC, 10),
+    # tagBattleTime@dec/anime: ターン消費アニメの相対移動 (-19,-6) x3箇所
+    (0x1D75D4, -19), (0x1D7826, -19), (0x1D7938, -19),
+    (0x1D75E8, -6), (0x1D783A, -6), (0x1D794C, -6),
+]
+
+# SINGLES19: 合戦本編 ホバーコマンド/隊列画像/結果数値/損害表示
+SINGLES19 = [
+    # tagBattleButton@create: ボタンアンカー 味方(+56,+5) 敵(-25,+5)
+    (0x1CBF08, 56), (0x1CBF22, 5), (0x1CBF42, -25), (0x1CBF5C, 5),
+    # tagBattleButton@add: ボタン縦ピッチ38 / テキスト影幅2 x4
+    (0x1CC102, 38),
+    (0x1CC1AC, 2), (0x1CC1C2, 2), (0x1CC1D8, 2), (0x1CC1EE, 2),
+    # tagBattleButton@add: テキスト領域 味方(+10,+8,134x20) 敵(+3,+8,134x20)
+    (0x1CC356, 10), (0x1CC35C, 134), (0x1CC38E, 8), (0x1CC394, 20),
+    (0x1CC506, 3), (0x1CC50C, 134), (0x1CC53E, 8), (0x1CC544, 20),
+    # tagBattleButton@setActionShow: 縦ピッチ38 / 名札位置 味方(+10,+8) 敵(+3,+8)
+    (0x1CCA04, 38),
+    (0x1CCAF0, 10), (0x1CCAFE, 8), (0x1CCB20, 3), (0x1CCB2E, 8),
+    # tagBattleBusho@setKekka: 結果数値 テキスト領域(7,7,66x17)
+    # / 表示位置 味方+70 敵+28 / +19 (フォント18は既パッチ済み)
+    (0x1C8818, 7), (0x1C881E, 66), (0x1C8824, 18),
+    (0x1C8848, 7), (0x1C884E, 17), (0x1C8854, 18),
+    (0x1C88BE, 70), (0x1C88CA, 28), (0x1C88E6, 19),
+    # tagBattle@showNumber/hideNumber: 損害数値の初期Yとスライド量
+    (0x1C201C, 312), (0x1C2088, 34),
+    (0x1C220C, 278), (0x1C2274, 34),
+    # tagBattleUnit@blendUnit: 隊列CG判定 480x370->960x740 / 固定アンカー(467,322)
+    (0x1DCFEC, 480), (0x1DD000, 370),
+    (0x1DD02A, 467), (0x1DD034, 322),
+    # tagBattleUnit@blendUnit: attack sprite anchors nW-0x10e / nH-0x10e (270),
+    # mode==3 extra nX shift -267 (pixel offsets, must follow 2x CG size)
+    (0x1DD07C, 270), (0x1DD096, 270), (0x1DD0D0, -267),
+    # tagBattlePlace@moveIn: スライド距離400 (leave系は既パッチ済み)
+    # 敵開始位置 = backupX + 400 + hosei が画面内(1280-1580)になるのを
+    # +800 で画面右外に出す
+    (0x1C3A80, 400),
+    # tagBattlePlace@moveIn: 入場スタッガー nHosei=i*100 / RAND(100) x2箇所
+    (0x1C3940, 100), (0x1C3990, 100), (0x1C39B8, 100),
+    # tagBattleNumber@update: 桁ピッチ40 / 散布 0x44,0x22,0x14,0x22
+    # (create canvas 40x34 is already patched in SINGLES13)
+    (0x1D6644, 40),
+    (0x1D65A0, 68), (0x1D65A8, 34), (0x1D65CE, 20), (0x1D65EE, 34),
+    # tagBattleNumber@updateDamage: アニメオフセット 20,68 / 桁ピッチ40
+    (0x1D68AA, 20), (0x1D68CC, 68), (0x1D6CFE, 40),
+    # tagBattleNumber@updateHeal: アニメオフセット 68 / 桁ピッチ40
+    (0x1D6D1E, 68), (0x1D7022, 40),
+]
+
+# PRE2_PATCH: 指定CALLMETHODの直前2個のPUSH即値を2倍化する
+# (範囲lo..hi内で命令バイト列patを検索し、直前の PUSH A PUSH B を2倍化)
+PRE2_PATCH = [
+    # tagUnitDataManager@0: 兵士フォーメーション座標テーブル
+    # tagUnitData@setPos(nIndex,nNo,nPlace,nRight,nBottom) の nRight/nBottom
+    # 関数範囲 0x1E31D6..0x1E52E0 (disasm) -> file +0x18
+    (0x1E31EE, 0x1E52F8, bytes([0x5C, 0x00, 0x2D, 0x0E, 0x00, 0x00])),
 ]
 
 if __name__ == "__main__":
