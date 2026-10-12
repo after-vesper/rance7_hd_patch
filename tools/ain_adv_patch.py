@@ -1121,17 +1121,24 @@ SINGLES13 = [
     (0x1D89D6, 18),
     # tagBattleDungeon@move
     (0x1D8CC6, 500), (0x1D8D04, 500), 
-    # tagBattleMessage@create
+    # tagBattleMessage@create: portrait pos (bRight 0x24e : 0xc, nY=0x2f),
+    # face x-nudge for cgNo==99, msg box nY=0xea, text offsets (0xd/0x21, 9),
+    # text metrics spacing (13, 4)
+    (0x1D8F26, 590), (0x1D8F32, 12), (0x1D8F40, 47), (0x1D9092, 2),
+    (0x1D919E, 234), (0x1D9228, 13), (0x1D9234, 33), (0x1D9242, 9),
+    (0x1D924E, 13), (0x1D9254, 4),
     (0x1D8FB4, 6), (0x1D8FBA, 33), (0x1D8FC0, 186), (0x1D8FC6, 220),
     (0x1D8FEA, 6), (0x1D8FF0, 33), (0x1D8FF6, 186), (0x1D8FFC, 220),
      (0x1D9050, 6),  (0x1D906A, 33),
     (0x1D90DC, 1), (0x1D9184, 238), (0x1D9190, 200), 
     (0x1D91B2, 10), (0x1D925A, 2), (0x1D929A, 1), (0x1D92C2, 24),
     # tagBattleMessage@wait2
+    (0x1D9480, 9),
     (0x1D9462, 13), (0x1D946E, 33), (0x1D94B0, 310), (0x1D94BE, 90),
     (0x1D94D8, 2),
-    # tagBattleMessage@drawName
-    (0x1D95B4, 16), (0x1D96EA, 4), (0x1D96F8, 4),
+    # tagBattleMessage@drawName: normalizeTextY(24, 16) vertical centering
+    (0x1D95B4, 16), (0x1D96EA, 4), (0x1D96F8, 4), (0x1D96CE, 24),
+    (0x1D96D4, 16),
     # tagBattleStart@create
     (0x1D982C, 0), (0x1D9832, 0), (0x1D988A, 400), (0x1D9890, 0),
     (0x1D98E0, 374), (0x1D98E6, 256),
