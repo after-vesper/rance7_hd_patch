@@ -248,6 +248,14 @@ def main(src_path, dst_path):
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
 
+    for off, expected in SINGLES21:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
     for lo, hi, pat in PRE2_PATCH:
         i = lo
         while True:
@@ -1334,6 +1342,30 @@ SINGLES20 = [
     # tagTitleBack@copyBack: コピー幅800 / 高600 / 境界1600
     (0x20092C, 0x320), (0x200936, 0x258),
     (0x200942, 0x320), (0x20094A, 0x640), (0x20099C, 0x640),
+]
+
+# SINGLES21: 勢力行動開始画面 (tagSeiryoku) / ターン経過画面 (tagTurnStart)
+# 勢力紋・マップCGは2x化済みだが、tagNumber数値スプライトと
+# メッセージバー(スライドイン)の座標が1xのままだった。
+SINGLES21 = [
+    # tagTurnStart@create: ターン番号ストリップ setPos (455,426)
+    (0x2012BA, 0x1c7), (0x2012C0, 0x1aa),
+    # tagSeiryoku@create: 武将人数 tagNumber setPos (685,444)
+    #                   / 総兵数  tagNumber setPos (685,482)
+    (0x201656, 0x2ad), (0x20165C, 0x1bc),
+    (0x2016D0, 0x2ad), (0x2016D6, 0x1e2),
+    # tagSeiryoku@paint: メッセージスライド領域
+    # センタリング x=99+(448-nW)/2 / 開始x=547 / 終了x=99-nW / 最終y=530
+    (0x20181C, 0x63), (0x201822, 0x1c0),
+    (0x201846, 547), (0x201858, 0x63), (0x201908, 0x212),
+    # tagSeiryoku@moveMessage: スライド中の setPos y=530
+    (0x2021D8, 0x212),
+    # tagSeiryoku@createMessage: テキストフォント24 x3 / 高さ29 x2 /
+    # バーコピー領域 (x0,y530,左w99,右x547)
+    (0x201E08, 0x18), (0x201E26, 0x1d),
+    (0x201E98, 0x18), (0x201F10, 0x18),
+    (0x201F48, 0x212), (0x201F52, 0x1d), (0x201F66, 0x63),
+    (0x202018, 547),
 ]
 
 # PRE2_PATCH: 指定CALLMETHODの直前2個のPUSH即値を2倍化する
