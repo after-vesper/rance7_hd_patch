@@ -272,6 +272,14 @@ def main(src_path, dst_path):
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
 
+    for off, expected in SINGLES24:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
     for lo, hi, pat in PRE2_PATCH:
         i = lo
         while True:
@@ -1479,6 +1487,25 @@ SINGLES23 = [
     (0x208EC0, 298), (0x208EC6, 271),
     (0x208FA8, 298), (0x208FAE, 271), (0x208FB4, 34),
     (0x209094, 298), (0x20909A, 271), (0x2090A0, 34),
+]
+
+# SINGLES24: 漏れ洗い出し監査で発見した未2x化箇所
+# tagSystemMessage@createRelation: 関係値ポップアップのフォント/サーフェス/配置
+# tagSansenList@dragBusho: 参戦リストドラッグの顔アイコン位置/境界 (tagSankaList側は済)
+# tagBattleNumber@updateHeal: 回復数値クランプ代入値 (GT比較側の0x116は2x化済み)
+SINGLES24 = [
+    (0x1FDF58, 24),    # sact_text_metrics nSize (フォントサイズ)
+    (0x1FDFD6, 104),   # サーフェス幅
+    (0x1FDFDC, 24),    # サーフェス高
+    (0x1FE008, 326),   # パネル X
+    (0x1FE00E, 261),   # パネル Y
+    (0x1FE04A, 430),   # 関係ウィジェット X
+    (0x1FE050, 264),   # 関係ウィジェット Y
+    (0x1B0E92, 32),    # ドラッグ顔 X オフセット
+    (0x1B0EAC, 36),    # ドラッグ顔 Y オフセット
+    (0x1B1170, 65),    # X 境界
+    (0x1B11A4, 72),    # Y 境界
+    (0x1D6F44, 278),   # updateHeal nY クランプ
 ]
 
 # PRE2_PATCH: 指定CALLMETHODの直前2個のPUSH即値を2倍化する
