@@ -1066,6 +1066,10 @@ SINGLES13 = [
     (0x1CC128, 16), (0x1CC724, 134), (0x1CC72A, 20),
     # tagBattleSequence@moveLeft
     (0x1CF538, 289),
+    # tagBattleArrow@set: m_nX = 0x55 + 0x64*(nSeqNo-2), m_nY = 275
+    (0x1D1804, 85), (0x1D180A, 100), (0x1D182E, 275),
+    # tagBattleArrow@update: bob bounds (cmp+assign for each of 275/280)
+    (0x1D16C2, 275), (0x1D16D8, 275), (0x1D171A, 280), (0x1D1730, 280),
     # tagBattleFlag@create
     (0x1D0492, 100), (0x1D0498, 14),
     # tagBattleFlag@draw
