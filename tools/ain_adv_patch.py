@@ -1072,8 +1072,9 @@ SINGLES13 = [
     (0x1D05FC, 14),
     # tagBattleFlag@moveEnd
     (0x1D0A78, 289), (0x1D0AA6, 289),
-    # tagBattleFlag@moveStart: auto moveSize 0x19/0x64, mode1 dest nY=314
-    (0x1D08E4, 25), (0x1D0934, 100), (0x1D0992, 314),
+    # tagBattleFlag@moveStart: auto moveSize 0x19/0x64, mode1 start nY=314,
+    # mode2 start nY=0x121 (moveDown runs 289->314; moveUp runs 314->289)
+    (0x1D08E4, 25), (0x1D0934, 100), (0x1D0992, 314), (0x1D09BA, 289),
     # tagBattleFlag@moveInStart
     # tagBattleFlag@setPos
     (0x1D0F46, 9), (0x1D0F54, 8),
