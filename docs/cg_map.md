@@ -131,6 +131,12 @@ absent in vanilla. Three confirmed artifact types and their fixes:
   cg10138 exec button sheet). Fix: additionally revert components >=8px
   where `ai_lum - ref_lum > 30 AND ref_lum < 160` — restores stroke
   weight while keeping AI sharpness.
+- **Killed white outlines** — AI also removes the light outline around
+  baked text (cg10139 ※ notes). Restoring by copying Lanczos pixels
+  gives jagged blocky edges; instead **lift AI luminance** toward the
+  Lanczos value (`gain = (lum + lift) / lum` on RGB) with a
+  gaussian-feathered weight where `ref_lum > 140` — smooth outline
+  restoration with zero Lanczos texture pasted.
 - **White fringe inside semi-transparent edges** (number fonts
   cg10171-173): keep AI RGB + original alpha geometry, decontaminate
   edge RGB by un-blending against the white backing, then remove
