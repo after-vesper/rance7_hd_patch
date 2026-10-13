@@ -112,6 +112,8 @@ def main():
     p.add_argument('--jobs', type=int, default=1,
                    help='API 同時リクエスト数 (既定: 1)')
     p.add_argument('--filter', help='対象ファイル名の正規表現')
+    p.add_argument('--limit', type=int, default=0,
+                   help='未処理ファイルをこの件数までに制限 (0=無制限)')
     p.add_argument('--retry', type=int, default=3)
     p.add_argument('--timeout', type=int, default=300)
     args = p.parse_args()
@@ -119,6 +121,21 @@ def main():
     pat = re.compile(args.filter, re.I) if args.filter else None
     files = [f for f in sorted(os.listdir(args.indir))
              if f.lower().endswith('.png') and (not pat or pat.search(f))]
+
+    def _is_done(fn):
+        # Cheap resume check: existing output with the exact target size.
+        try:
+            from PIL import Image as _I
+            src = _I.open(os.path.join(args.indir, fn))
+            dst = os.path.join(args.outdir, fn)
+            return os.path.exists(dst) and \
+                _I.open(dst).size == (src.width * args.scale,
+                                      src.height * args.scale)
+        except Exception:
+            return False
+
+    if args.limit > 0:
+        files = [f for f in files if not _is_done(f)][:args.limit]
     if not files:
         sys.exit('対象PNGがありません: ' + args.indir)
     os.makedirs(args.outdir, exist_ok=True)
