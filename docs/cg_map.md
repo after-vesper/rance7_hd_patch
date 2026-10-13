@@ -61,6 +61,12 @@ E.g. `CG_IS_EXIST(64990)` in the code resolves file `cg64991.QNT`.
 | cg45xxx-57xxx | various | Battle/game CGs |
 | cg49000-49074 | 152x78 | Battle effect sprites (~60 files) |
 
+## Number font
+
+| File | Size (orig) | Usage |
+|---|---|---|
+| cg10171-10173 | 400x34 | Number font sheets (0-9) for in-game counters. AI upscale left a white fringe halo at edges (original edge is dark red 79,1,0); fixed by edge decontamination + removal of outer light-fringe pixels connected to the transparent boundary. Same recipe applies to other fringe-affected UI sprites. |
+
 ## Event cut-in effects
 
 | CG ID (AIN) | File | Size (orig) | Usage |
