@@ -146,17 +146,16 @@ absent in vanilla. Three confirmed artifact types and their fixes:
   cg10371, cg10448 (turn-number sheet), cg10105, cg10110, cg10132,
   cg10051, cg10072/73, cg13306/21/36/39/50/75/90, cg13627/648,
   cg14851/52/55, cg50892, cg57011.
-  - Refinement: elongated components in the Lanczos reference (dark
-    rules lum<130, bright highlights lum>200; long side >=40px, aspect
-    >=3) that come within ~15px of the text mask are absorbed WHOLE —
-    and if the component's bounding box is <=12% of the image, the whole
-    BBOX is reverted. This keeps ruled lines/button frames uniformly
-    Lanczos instead of AI/Lanczos patchwork (the white inner bevel on
-    cg10131's button bent toward the glyphs because the line belonged to
-    the giant bright background component; bbox-fill fixes it). Alpha is
-    clamped to the orig 2x footprint. Applied to cg10130/10131/10101/
-    12000/13336/10371/13306/13390/10448/13550/13648/13350/13627/10132/
-    10110/10098/10105/13575/13321/50892/10051.
+  - Refinement (v5, run-based): per scanline, maximal runs of dark
+    (lum<130) or bright (lum>200) pixels >=40px long that come within
+    ~15px of the text mask are reverted WHOLE — horizontally and
+    vertically. This keeps ruled lines, bevels and button edges
+    uniformly Lanczos even when the line pixels belong to a giant
+    background component that component-labeling cannot isolate
+    (cg10139's baked button bevels; cg10131's white inner bevel).
+    Alpha is clamped to the orig 2x footprint. Applied to cg10139 and
+    cg10130/10131/10101/12000/13336/10371/13306/13390/10448/13550/
+    13648/13350/13627/10132/10110/10098/10105/13575/13321/50892/10051.
 - **White fringe inside semi-transparent edges** (number fonts
   cg10171-173): keep AI RGB + original alpha geometry, decontaminate
   edge RGB by un-blending against the white backing, then remove
