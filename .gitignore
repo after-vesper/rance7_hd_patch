@@ -13,6 +13,7 @@ backup/
 # Generated dumps and build output
 dump/
 build/
+dist/
 *.jam
 !hooks.jam
 *.tmp
