@@ -84,6 +84,7 @@ E.g. `CG_IS_EXIST(64990)` in the code resolves file `cg64991.QNT`.
 | cg10299 | 800x600, 777 colors | Map overlay (AI-upscaled) |
 | cg10300 | 800x600, ~303k colors | Main map artwork (AI-upscaled) |
 | cg10301-10xxx | small | Map-related unit/castle icons |
+| cg10270-10274 | 58x16, RGBA | Territory action-list category label tags (内政/合戦/建設/？？？/その他). **NEAREST-upscaled** — AI upscale washed out the tag colors. |
 
 ## Text / UI misc
 
