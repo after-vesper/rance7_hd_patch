@@ -24,7 +24,7 @@ Steam 版 **戦国ランス (Sengoku Rance / Rance 7)** の画面を、固定の
 
 ## インストール
 
-1. リリースの ZIP を展開し、`installer` フォルダを開く
+1. [リリースページ](https://github.com/after-vesper/rance7_hd_asset_patch/releases/latest)から ZIP をダウンロードして展開し、`installer` フォルダを開く
 2. `Install.cmd` をダブルクリック — Steam のゲームフォルダを自動検出します
 3. ゲームフォルダが `Program Files` 配下にある場合は、管理者権限の確認(UAC)が出ます
 
