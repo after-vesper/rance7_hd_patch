@@ -107,3 +107,34 @@ E.g. `CG_IS_EXIST(64990)` in the code resolves file `cg64991.QNT`.
   "Dai Sengoku Rance" mod ships `Rance7GB.ald`/`Rance7WB.ald` (letter B,
   disk 1), proving additional volumes work. Current layout avoids needing a
   new letter by keeping upscaled files in GA (disk 0).
+
+## AI fringe-removal recipes (established during verification)
+
+The upscaler (2x-AnimeSharpV4) sometimes invents edge artifacts that are
+absent in vanilla. Three confirmed artifact types and their fixes:
+
+- **Alpha fill (light "halo" lines)** — semi-transparent white/light pixels
+  added beyond the original alpha footprint (cg10249 battle turn gauge,
+  cg10118 action gauge, balloons cg10251/253). Fix: NEAREST 2x, or keep AI
+  RGB and clamp alpha to the original footprint (nearest-2x mask).
+- **Dark border fill (opaque UI)** — thick black frame lines drawn on
+  light button/bar edges (cg10079-81 button sheets, cg10052-10119 bars).
+  Fix: **component-based revert** — label connected components of the
+  "AI-darkened" mask (`ref_lum - ai_lum > 30` vs Lanczos-2x reference),
+  revert components that touch the outer border OR are >=120 px (plus
+  2px dilation) back to the Lanczos value. Glyph strokes are small
+  components and stay AI, so text keeps the AI sharpness. A pixel-level
+  revert must NOT be used: it leaves glyph edges as an AI/Lanczos
+  patchwork and makes text visibly jagged.
+- **White fringe inside semi-transparent edges** (number fonts
+  cg10171-173): keep AI RGB + original alpha geometry, decontaminate
+  edge RGB by un-blending against the white backing, then remove
+  connected light pixels outside the intended dark-red outline.
+
+### Assets processed
+
+- NEAREST 2x: cg10249, cg10296, cg10298
+- Component-revert hybrid: cg10052, cg10058, cg10074, cg10075, cg10077,
+  cg10079-81, cg10082-88, cg10094, cg10113, cg10114, cg10119
+- Hybrid + alpha clamp: cg10126
+- Unblended alpha + fringe removal: cg10171-73
