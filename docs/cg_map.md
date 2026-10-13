@@ -88,6 +88,7 @@ E.g. `CG_IS_EXIST(64990)` in the code resolves file `cg64991.QNT`.
 | cg10275 | 25x24, RGBA a=128 | Spent action-count gunbai icon (next to 行動回数). **NEAREST-upscaled** — designed as a uniformly translucent sprite; AI dimmed alpha ~118→73 making it nearly invisible. |
 | cg10276 | 25x24, RGBA opaque | Remaining action-count gunbai icon. NEAREST-upscaled together with cg10275 for pixel fidelity. |
 | cg10103 | 411x14, RGBA {128,179,255} | Yellow selection frame drawn over officers in battle formation. **NEAREST-upscaled** — AI halved alpha AND greyed the yellow fill. |
+| cg10126 | 18x18, RGBA | Smiley-face mark (にこちゃん). **NEAREST-upscaled** — AI thinned the eye/mouth strokes. |
 | cg10104 | 411x14, RGBA a=128 | Translucent bar strip (rfStatus1). **AI RGB + NEAREST alpha** — AI halved the uniform 128 alpha. |
 | cg13034, cg13072 | 270x270, alpha {0,128,255} | Unit-chara portraits (tagUnitCharaManager). **AI RGB + NEAREST alpha** — AI eroded the quantized 128 alpha regions. |
 | cg30087 (AJP) | 80x19 | Semi-transparent misc sprite. **AI RGB + NEAREST alpha**. |
