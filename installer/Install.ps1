@@ -8,8 +8,8 @@
       * Rance7GM.ald / Rance7GA.ald - HD asset payload repack
       * AliceLogo3.alk / DLL\AliceLogo3.dll - HD logo animation
       * System40.ini - ViewWidth/ViewHeight -> 1600x1200
-    Compatible with vanilla, JP-patched, NationalExpansion and JP+NE
-    installs, in any application order. Creates a timestamped backup
+    Compatible with vanilla, JP-patched and unofficial-patch installs,
+    in any application order. Creates a timestamped backup
     under backup\hd_* before touching anything.
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1
@@ -129,8 +129,8 @@ $ainHash = (Sha256 $ainPath).Substring(0, 16)
 $knownAin = @{
     'B4459F0637F7E1B0' = 'vanilla (Steam, unmodified)'
     '7CB8B11941A14007' = 'JP patch applied'
-    '090D9FD001997022' = 'NationalExpansion applied'
-    '7BF70D33BAC35CE1' = 'JP + NationalExpansion'
+    '090D9FD001997022' = 'unofficial patch applied'
+    '7BF70D33BAC35CE1' = 'JP patch + unofficial patch applied'
 }
 $variant = $knownAin[$ainHash]
 if (-not $variant) { $variant = "unknown (ain hash $ainHash)" }
