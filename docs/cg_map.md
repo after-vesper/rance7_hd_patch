@@ -137,6 +137,15 @@ absent in vanilla. Three confirmed artifact types and their fixes:
   Lanczos value (`gain = (lum + lift) / lum` on RGB) with a
   gaussian-feathered weight where `ref_lum > 140` — smooth outline
   restoration with zero Lanczos texture pasted.
+- **Baked-text panels** — for text-heavy document images the final recipe
+  reverts whole TEXT REGIONS to Lanczos: detect orig dark glyph cores
+  (lum<150, connected components 4..400px), dilate 6px, feather, and
+  blend region -> Lanczos. Background/illustration stays AI. Applied to
+  cg10139 (ForceFull panel incl. button+※notes), cg10138 (exec button
+  sheet), cg10130/10131/12000 (sibling panels), cg10100/10101/10098,
+  cg10371, cg10448 (turn-number sheet), cg10105, cg10110, cg10132,
+  cg10051, cg10072/73, cg13306/21/36/39/50/75/90, cg13627/648,
+  cg14851/52/55, cg50892, cg57011.
 - **White fringe inside semi-transparent edges** (number fonts
   cg10171-173): keep AI RGB + original alpha geometry, decontaminate
   edge RGB by un-blending against the white backing, then remove
