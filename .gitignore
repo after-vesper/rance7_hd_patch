@@ -1,5 +1,9 @@
 # Copyrighted game data — never commit (full game install lives here)
 game/
+vanilla/
+jp/
+ne/
+jp_ne/
 Rance7.ain
 *.ain
 System40.ini
