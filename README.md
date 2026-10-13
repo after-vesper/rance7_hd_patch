@@ -48,9 +48,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1 -GameDir "D:\Gam
 
 ## アンインストール
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File Uninstall.ps1
-```
+`Uninstall.cmd` をダブルクリックし、復元するバックアップを選択してください(既定は最新)。
 
 最新のバックアップから `Rance7.ain`・`System40.ini`・`Rance7*.ald`・起動ロゴ関連ファイルを復元します。セーブデータには触れません。
 
