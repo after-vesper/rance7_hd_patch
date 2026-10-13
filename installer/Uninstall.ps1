@@ -47,8 +47,9 @@ if (-not (Test-Path (Join-Path $BackupDir 'Rance7.ain'))) {
     exit 1
 }
 
-$files = @('Rance7.ain', 'Rance7GM.ald', 'Rance7GA.ald', 'System40.ini',
-           'AliceLogo3.alk', 'DLL\AliceLogo3.dll')
+$files = @('Rance7.ain', 'Rance7GM.ald', 'Rance7GA.ald', 'Rance7BA.ald',
+           'Rance7WA.ald', 'System40.ini', 'AliceLogo3.alk',
+           'DLL\AliceLogo3.dll')
 foreach ($f in $files) {
     $src = Join-Path $BackupDir $f
     $dst = Join-Path $GameDir $f
