@@ -136,5 +136,8 @@ absent in vanilla. Three confirmed artifact types and their fixes:
 - NEAREST 2x: cg10249, cg10296, cg10298
 - Component-revert hybrid: cg10052, cg10058, cg10074, cg10075, cg10077,
   cg10079-81, cg10082-88, cg10094, cg10113, cg10114, cg10119
+- Component-revert + alpha-extras removal: cg10001-03, cg10118, cg10121,
+  cg10155-57, cg10192-95, cg10201, cg10221, cg10251/253, cg10261,
+  cg10297, cg10383, cg10704, cg13393, cg13683, cg30022-25 (AJP), cg30088
 - Hybrid + alpha clamp: cg10126
 - Unblended alpha + fringe removal: cg10171-73
