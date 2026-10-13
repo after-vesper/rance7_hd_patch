@@ -126,6 +126,11 @@ absent in vanilla. Three confirmed artifact types and their fixes:
   components and stay AI, so text keeps the AI sharpness. A pixel-level
   revert must NOT be used: it leaves glyph edges as an AI/Lanczos
   patchwork and makes text visibly jagged.
+- **Stroke thinning (baked text)** — AI lightens originally-dark glyph
+  pixels, making baked-in text look thin/washed (cg10139 ForceFull panel,
+  cg10138 exec button sheet). Fix: additionally revert components >=8px
+  where `ai_lum - ref_lum > 30 AND ref_lum < 160` — restores stroke
+  weight while keeping AI sharpness.
 - **White fringe inside semi-transparent edges** (number fonts
   cg10171-173): keep AI RGB + original alpha geometry, decontaminate
   edge RGB by un-blending against the white backing, then remove
