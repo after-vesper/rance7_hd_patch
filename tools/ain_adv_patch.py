@@ -727,11 +727,11 @@ SINGLES5 = [
 
 SINGLES6 = [
     # tagHoryo@create: 捕虜パネル
-    (0x1B2DF0, 282), (0x1B2E04, 201),   # ウィンドウ w/h
+    (0x1B2DF0, 282), # ウィンドウ w/h
     (0x1B2E18, 18), (0x1B2E3C, 29), (0x1B2E42, 420), (0x1B2E66, 18),   # member2 テキスト
-    (0x1B2E54, 202),                                                    # member2 テキスト幅
+    # member2 テキスト幅
     (0x1B2EA8, 8), (0x1B2ECC, 13), (0x1B2ED2, 287), (0x1B2EF6, 20),    # member3 テキスト
-    (0x1B2EE4, 202),                                                    # member3 テキスト幅 (タイトル)
+    # member3 テキスト幅 (タイトル)
     (0x1B305C, 56), (0x1B3062, 490),    # ボタン1 (勧誘)
     (0x1B310A, 341), (0x1B3110, 288),   # ボタン2 (閉)
     # tagHoryo@open/close: スライドイン (x算出の282, 26, 65, 26, 150)
@@ -756,13 +756,13 @@ SINGLES6 = [
     (0x1BADB6, 44),                     # 空きスロット番号テキスト フォントサイズ
     (0x1BB004, 64), (0x1BB00A, 64),
     # tagItemList@create: アイテム倉庫
-    (0x1BBCA2, 282), (0x1BBCB6, 201),   # ウィンドウ w/h
-    (0x1BC09E, 202),                    # アイテムスプライト z (panel z+1 相当)
+    (0x1BBCA2, 282), # ウィンドウ w/h
+    # アイテムスプライト z (panel z+1 相当)
     (0x1BBCCA, 6), (0x1BBCEE, 13), (0x1BBCF4, 287), (0x1BBD18, 20),    # member3 テキスト
-    (0x1BBD06, 202),                                                    # member3 テキスト幅 (タイトル)
+    # member3 テキスト幅 (タイトル)
     (0x1BBDC2, 8), (0x1BBDE6, 9), (0x1BBDEC, 550), (0x1BBE10, 14),     # member4 テキスト
-    (0x1BBDFE, 202),                                                    # member4 テキスト幅
-    (0x1BBE66, 202), (0x1BBE6C, 173),   # member5 スクロールバー位置
+    # member4 テキスト幅
+    (0x1BBE6C, 173),   # member5 スクロールバー位置
     (0x1BBE84, 351), (0x1BBE8A, 335),   # member5 スクロールトラック
     # ※スクロール範囲最大行数(18)は論理値のため2倍化しない
     (0x1BBFA4, 341), (0x1BBFAA, 288),   # member6 閉ボタン位置
@@ -779,11 +779,11 @@ SINGLES6 = [
     (0x1BF0E0, 155), (0x1BF0E6, 572), (0x1BF0EC, 65), (0x1BF0F2, 26), (0x1BF0F8, 150),
     (0x1BF14A, 155), (0x1BF150, 572), (0x1BF156, 65), (0x1BF15C, 26), (0x1BF162, 150),
     # tagForce@create: 兵力パネル
-    (0x1BF1C0, 282), (0x1BF1D4, 201),   # ウィンドウ w/h
-    (0x1BF1E8, 13), (0x1BF1EE, 287), (0x1BF1F4, 202),    # タイトルバー (13,287,202)
-    (0x1BF206, 185), (0x1BF20C, 343), (0x1BF212, 202),   # ボタン 補充 (185,343)
-    (0x1BF242, 185), (0x1BF248, 411), (0x1BF24E, 202),   # ボタン 増員 (185,411)
-    (0x1BF27E, 185), (0x1BF284, 479), (0x1BF28A, 202),   # ボタン 解雇 (185,479)
+    (0x1BF1C0, 282), # ウィンドウ w/h
+    (0x1BF1E8, 13), (0x1BF1EE, 287), # タイトルバー (13,287,202)
+    (0x1BF206, 185), (0x1BF20C, 343), # ボタン 補充 (185,343)
+    (0x1BF242, 185), (0x1BF248, 411), # ボタン 増員 (185,411)
+    (0x1BF27E, 185), (0x1BF284, 479), # ボタン 解雇 (185,479)
     (0x1BF2BC, 44), (0x1BF2C2, 16),     # member8 バッファ
     (0x1BF2EE, 318), (0x1BF2F4, 538),   # member8 位置
     # NOTE: member9 tagNumberList createCanvas(177,16, r2,g79,b41,a179) -
@@ -855,19 +855,14 @@ SINGLES7 = [
     (0x1EBF36, 0x41), (0x1EBF4C, 0x1a), (0x1EBF54, 0x41), (0x1EBF5A, 0x1a),
     (0x1EC054, 0x41), (0x1EC06A, 0x1a), (0x1EC072, 0x41), (0x1EC078, 0x1a),
     # tagBushoList@create: カーソルz+10/+31, コメント(11,6)z+1, member13 z+1
-    (0x1EC2D2, 0xa), (0x1EC322, 0x1f),
-    (0x1EC338, 0xb), (0x1EC346, 6), (0x1EC35A, 1), (0x1EC37C, 1),
-    # tagBushoList@createBase: ベース(376,y2)z201, タイトル(381,60)z203
-    (0x1ED856, 0x178), (0x1ED85C, 2), (0x1ED870, 0xc9),
-    (0x1ED8CC, 0x17d), (0x1ED8D2, 0x3c), (0x1ED8E6, 0xcb),
-    # tagBushoList@createBase2: フィルム(476/376,y2)z201, テキスト(242,72)(64,33)フォント16
+    (0x1EC338, 0xb), (0x1EC346, 6), (0x1EC35A, 1), # tagBushoList@createBase: ベース(376,y2)z201, タイトル(381,60)z203
+    (0x1ED856, 0x178), (0x1ED85C, 2), (0x1ED8CC, 0x17d), (0x1ED8D2, 0x3c), # tagBushoList@createBase2: フィルム(476/376,y2)z201, テキスト(242,72)(64,33)フォント16
     (0x1ED918, 0x1dc), (0x1ED924, 0x178), (0x1ED94A, 2), (0x1ED956, 2),
-    (0x1ED994, 0xc9), (0x1ED9BE, 0x10),
+    (0x1ED9BE, 0x10),
     (0x1EDA4E, 0xf2), (0x1EDA54, 0x48), (0x1EDA86, 0x40), (0x1EDA8C, 0x21),
     # tagBushoList@createBright: ハイライト領域 y61 h500, x+382, z202
     (0x1EDB22, 61), (0x1EDB30, 0x1f4),
     (0x1EDB5E, 0x17e), (0x1EDC10, 0x17e),
-    (0x1EDBD4, 0xca), (0x1EDC86, 0xca),
     # tagBushoList@brightParam: nY-59, 矩形 55x14
     (0x1ECC28, 59), (0x1ECC44, 0x37), (0x1ECC4A, 0xe),
     # tagBushoList@createButton: ボタン位置 (665,765) z+31, (381,33)(477,33)(573,33)
@@ -881,30 +876,25 @@ SINGLES7 = [
     (0x1F19F4, 0x154), (0x1F19FA, 0x67), (0x1F1A00, 0xf),
     (0x1F1A10, 0x27), (0x1F1A16, 0xf),
     # tagBushoArrange@create: カーソルz+1, ヴェールz911, バー(340,8)z912, z913
-    (0x1F1CE6, 1), (0x1F1D52, 0x38f),
-    (0x1F1D8E, 0x154), (0x1F1D94, 8), (0x1F1DA8, 0x390), (0x1F1DD0, 0x391),
-    # tagBushoArrange@arrange: z+1
-    (0x1F282A, 1),
+    (0x1F1D8E, 0x154), (0x1F1D94, 8), # tagBushoArrange@arrange: z+1
     # tagBushoArrange@squeeze1/2: 行ピッチ15, nY3+=15 / -=15
     (0x1F2DBE, 0xf), (0x1F2EC0, 0xf), (0x1F2E78, 15), (0x1F2F6A, 15),
     (0x1F31C0, 0xf), (0x1F32C2, 0xf), (0x1F327A, 15), (0x1F336C, 15),
     # tagBushoInfo@create: 情報パネル内レイアウト
     (0x1EEAA0, 1), (0x1EEAA6, 2),                    # member3 pos(1,2)
-    (0x1EEAF2, 0xc), (0x1EEAF8, 8), (0x1EEB10, 1), (0x1EEB24, 0x14),  # member4(12,8)z+1 f20
+    (0x1EEAF2, 0xc), (0x1EEAF8, 8), (0x1EEB24, 0x14),  # member4(12,8)z+1 f20
     (0x1EEBBC, 0x9c), (0x1EEBC2, 8), (0x1EEBCE, 1),  # member5 pos(156,8)z+1
-    (0x1EEBF6, 7), (0x1EEBFC, 0x22), (0x1EEC16, 2),  # member7 pos(7,34)z+2
-    (0x1EEC38, 0xf), (0x1EEC3E, 0x2a), (0x1EEC56, 3),  # member8 pos(15,42)z+3
-    (0x1EEC8E, 0x59), (0x1EEC94, 0x25), (0x1EECAC, 2), (0x1EECC0, 0xe),  # member11(89,37)z+2 f14
+    (0x1EEBF6, 7), (0x1EEBFC, 0x22), # member7 pos(7,34)z+2
+    (0x1EEC38, 0xf), (0x1EEC3E, 0x2a), # member8 pos(15,42)z+3
+    (0x1EEC8E, 0x59), (0x1EEC94, 0x25), (0x1EECC0, 0xe),  # member11(89,37)z+2 f14
     # tagBushoInfo@setItemNo: アイテムアイコン位置 (29,204)
-    (0x1EEEC2, 0x1d), (0x1EEEC8, 0xcc),
     # tagBushoInfo@draw: パラメータ原点y124, フォント14x5, 行ピッチ14x4
     (0x1EF840, 0x7c),
     (0x1EF84E, 0xe), (0x1EF87A, 0xe), (0x1EF8A6, 0xe), (0x1EF8D2, 0xe), (0x1EF8FE, 0xe),
     (0x1EF868, 14), (0x1EF894, 14), (0x1EF8C0, 14), (0x1EF8EC, 14),
     # tagBushoInfo@createUnit: バッファ(362x241), 位置(7,34)z+1
     (0x1F00E4, 0x16a), (0x1F00EA, 0xf1),
-    (0x1F0116, 7), (0x1F011C, 0x22), (0x1F013C, 1),
-    # tagBushoInfo@createUnit: CGソース矩形 (x,y) x9ペア
+    (0x1F0116, 7), (0x1F011C, 0x22), # tagBushoInfo@createUnit: CGソース矩形 (x,y) x9ペア
     (0x1F01D8, 0x170), (0x1F01DE, 0xc9), (0x1F01F2, 0x1a3), (0x1F01F8, 0x106),
     (0x1F020C, 0x14d), (0x1F0212, 0x120), (0x1F0286, 0x137), (0x1F028C, 0xdb),
     (0x1F02A0, 0x19a), (0x1F02A6, 0x107), (0x1F02BA, 0x109), (0x1F02C0, 0x131),
@@ -1141,8 +1131,7 @@ SINGLES13 = [
     # tagBattleFlag@setPos
     (0x1D0F46, 9), (0x1D0F54, 8),
     # tagBattleEffect@setPosFromBusho
-    (0x1D2102, 1), (0x1D2172, 50),
-    # tagBattleNumber@create
+    (0x1D2102, 1), # tagBattleNumber@create
     (0x1D5F42, 40), (0x1D5F48, 34),
     # tagBattleNumber@updateDamage
     (0x1D6B94, 40), (0x1D6B9A, 34), (0x1D6BC6, 0), (0x1D6BCC, 0),
@@ -1154,8 +1143,7 @@ SINGLES13 = [
     (0x1D6FAA, 40), (0x1D6FB0, 34),  (0x1D6FCA, 244),
     (0x1D6FFA, 40), (0x1D7000, 34),
     # tagBattleTime@create
-    (0x1D7170, 375), (0x1D7176, 326), (0x1D72A4, 1),
-    # tagBattleBar@create
+    (0x1D7170, 375), (0x1D7176, 326), # tagBattleBar@create
     (0x1D7B4E, 400), (0x1D7B54, 9), (0x1D7BB4, 14), (0x1D7C5C, 14),
     # tagBattleBar@moveStart: y start offset 3, home x 0xad=173, y 3
     (0x1D80D2, 3), (0x1D80EC, 173), (0x1D80F2, 3),
@@ -1195,12 +1183,11 @@ SINGLES13 = [
     (0x1D8FB4, 6), (0x1D8FBA, 33), (0x1D8FC0, 186), (0x1D8FC6, 220),
     (0x1D8FEA, 6), (0x1D8FF0, 33), (0x1D8FF6, 186), (0x1D8FFC, 220),
      (0x1D9050, 6),  (0x1D906A, 33),
-    (0x1D90DC, 1), (0x1D9184, 238), (0x1D9190, 200), 
-    (0x1D91B2, 10), (0x1D925A, 2), (0x1D929A, 1), (0x1D92C2, 24),
+    (0x1D9184, 238), (0x1D9190, 200), 
+    (0x1D91B2, 10), (0x1D925A, 2), (0x1D92C2, 24),
     # tagBattleMessage@wait2
     (0x1D9480, 9),
     (0x1D9462, 13), (0x1D946E, 33), (0x1D94B0, 310), (0x1D94BE, 90),
-    (0x1D94D8, 2),
     # tagBattleMessage@drawName: normalizeTextY(24, 16) vertical centering
     (0x1D95B4, 16), (0x1D96EA, 4), (0x1D96F8, 4), (0x1D96CE, 24),
     (0x1D96D4, 16),
@@ -1220,7 +1207,7 @@ SINGLES13 = [
     (0x1DA092, 9), (0x1DA0A0, 65),
     # tagBattlePreInfo@create
     (0x1DA1A0, 1), (0x1DA1A6, 2), (0x1DA1F2, 13), (0x1DA1F8, 7),
-    (0x1DA210, 1), (0x1DA224, 20), (0x1DA2C2, 1), (0x1DA2D6, 55),
+    (0x1DA224, 20), (0x1DA2D6, 55),
     (0x1DA2DC, 142),
     # tagBattlePreInfo@set
     (0x1DA35C, 11), (0x1DA362, 37), (0x1DA3AC, 11), (0x1DA3B2, 37),
