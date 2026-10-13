@@ -42,8 +42,10 @@ FIXES = [
     (0x1EDBD4, 202), (0x1EDC86, 202),
     # tagBushoInfo@create: z+k offsets on text/sprite/bushoFace
     (0x1EEB10, 1), (0x1EEC16, 2), (0x1EEC56, 3), (0x1EECAC, 2),
-    # tagBushoInfo@createUnit: tagItem array index + z
-    (0x1EEEC2, 29), (0x1EEEC8, 204),
+    # NOTE: 0x1EEEC2 / 0x1EEEC8 were misidentified here as
+    # "tagItem array index + z" - they are actually tagBushoInfo@setItemNo's
+    # tagItem@setPos(29, 204) COORDINATES and must stay doubled (58, 408).
+    # Reverting them misplaces the equipment icon in the busho detail pane.
     # tagBushoInfo@createUnit / tagBushoArrange@create / @arrange
     (0x1F013C, 1), (0x1F1CE6, 1),
     (0x1F1D52, 911), (0x1F1DA8, 912), (0x1F1DD0, 913),

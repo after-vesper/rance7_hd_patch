@@ -251,6 +251,26 @@ def main():
                 matches.append(j)
             if len(matches) != len(grp_sorted):
                 if len(matches) == 0:
+                    # Already-patched guard: when every site in this group
+                    # already has a same-op instruction carrying the NEW
+                    # value, this copy is HD-patched - the relaxed scan
+                    # below would corrupt unrelated operands equal to `old`.
+                    already = 0
+                    for b in grp_sorted:
+                        for j2 in range(len(ins)):
+                            a2, op2, _ = ins[j2]
+                            if op2 != b["op"]:
+                                continue
+                            file_off = code_off + a2 + b["delta"]
+                            if file_off + 4 <= len(dec) and \
+                                    struct.unpack_from("<i", dec,
+                                                       file_off)[0] \
+                                    == b["new"]:
+                                already += 1
+                                break
+                    if already == len(grp_sorted):
+                        stats["ok"] += len(grp_sorted)
+                        continue
                     # Relaxed fallback: the function body was rewritten by
                     # another mod (e.g. NationalExpansion override). Patch
                     # every operand slot equal to `old` inside this copy.

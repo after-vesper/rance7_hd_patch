@@ -402,6 +402,28 @@ public static class HdPatch
                     }
                     else if (matches.Count == 0)
                     {
+                        // Already-patched guard: when every site in this group
+                        // already has a same-op instruction carrying the NEW
+                        // value, this copy is HD-patched - the relaxed scan
+                        // below would corrupt unrelated operands that happen
+                        // to equal Old.
+                        int withNew = 0;
+                        foreach (var b in grp)
+                        {
+                            foreach (var ins2 in ins)
+                            {
+                                if (ins2.Op != b.Op) continue;
+                                long fo = codeOff + ins2.Addr + b.Delta;
+                                if (fo + 4 <= dec.Length &&
+                                    BitConverter.ToInt32(dec, (int)fo) == b.New)
+                                { withNew++; break; }
+                            }
+                        }
+                        if (withNew == grp.Count)
+                        {
+                            res.AlreadyPatched += grp.Count;
+                            continue;
+                        }
                         // Relaxed fallback: the function body was rewritten by
                         // another mod - patch every i32 operand equal to old.
                         int relaxed = 0;

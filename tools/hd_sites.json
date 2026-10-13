@@ -1,6 +1,6 @@
 {
 "code_base": 24,
-"count": 2015,
+"count": 2017,
 "sites": [
 {
 "func": "tagWaitIconManager@0",
@@ -75455,6 +75455,100 @@
 ],
 "rank": 0,
 "n_match": 1
+},
+{
+"func": "tagBushoInfo@setItemNo",
+"idx": 20,
+"addr": 2027176,
+"delta": 2,
+"op": "PUSH",
+"old": 29,
+"new": 58,
+"ctx": [
+[
+2027158,
+"SH_LOCALREF",
+"0x0"
+],
+[
+2027164,
+"CALLMETHOD",
+"*"
+],
+[
+2027170,
+"SH_STRUCTREF",
+"0xa"
+],
+[
+2027176,
+"PUSH",
+"0x1d"
+],
+[
+2027182,
+"PUSH",
+"0xcc"
+],
+[
+2027188,
+"CALLMETHOD",
+"*"
+],
+[
+2027194,
+"SH_STRUCTREF",
+"0xa"
+]
+],
+"rank": -1
+},
+{
+"func": "tagBushoInfo@setItemNo",
+"idx": 21,
+"addr": 2027182,
+"delta": 2,
+"op": "PUSH",
+"old": 204,
+"new": 408,
+"ctx": [
+[
+2027164,
+"CALLMETHOD",
+"*"
+],
+[
+2027170,
+"SH_STRUCTREF",
+"0xa"
+],
+[
+2027176,
+"PUSH",
+"0x1d"
+],
+[
+2027182,
+"PUSH",
+"0xcc"
+],
+[
+2027188,
+"CALLMETHOD",
+"*"
+],
+[
+2027194,
+"SH_STRUCTREF",
+"0xa"
+],
+[
+2027200,
+"SH_STRUCTREF",
+"0x8"
+]
+],
+"rank": -1
 },
 {
 "func": "tagBushoInfo@draw",
