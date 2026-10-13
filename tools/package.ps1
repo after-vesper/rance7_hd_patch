@@ -1,18 +1,23 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-    Build the release zip (installer + payload) and attach it to the
+    Build the release zips (installer + payload) and attach them to the
     GitHub release for the given tag.
 
 .DESCRIPTION
     The tag-triggered GitHub Actions workflow creates the release entry;
     the asset payload is too large for the repo, so this script packages
-    installer/ locally and uploads dist\rance7_hd_patch_<ver>.zip.
+    installer/ locally.
+
+    GitHub release assets are limited to 2 GB each, so the output is two
+    files that overlay each other when extracted into the same folder:
+      dist\rance7_hd_patch_<ver>.zip        installer + data (except GA)
+      dist\rance7_hd_patch_<ver>_ga.zip     installer\data\GA only
 
 .EXAMPLE
     tools\package.ps1            # uses the newest v* tag
     tools\package.ps1 v1.0.0
-    tools\package.ps1 v1.0.0 -NoUpload   # zip only, no upload
+    tools\package.ps1 v1.0.0 -NoUpload   # zips only, no upload
 #>
 param(
     [string]$Version,
@@ -34,34 +39,48 @@ if (-not (Test-Path 'installer\data')) {
     throw "installer\data missing - build the payload first"
 }
 
-$zip = Join-Path $root "dist\rance7_hd_patch_$Version.zip"
-New-Item -ItemType Directory -Force "$root\dist" | Out-Null
-if (Test-Path $zip) { Remove-Item $zip -Force }
-
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$fs  = [IO.File]::Open($zip, 'Create')
-$arc = New-Object IO.Compression.ZipArchive($fs, 'Create')
-try {
-    # installer/ keeps its folder name inside the zip; README.md at root.
-    $files = Get-ChildItem installer -Recurse -File
-    $i = 0
-    foreach ($f in $files) {
-        $i++
-        if ($i % 500 -eq 0) { Write-Host "  $i / $($files.Count) files" }
-        $rel = $f.FullName.Substring($root.Length + 1) -replace '/', '\'
-        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
-            $arc, $f.FullName, $rel) | Out-Null
+
+function Write-Zip($zipPath, $files, $extra) {
+    if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+    $fs  = [IO.File]::Open($zipPath, 'Create')
+    $arc = New-Object IO.Compression.ZipArchive($fs, 'Create')
+    try {
+        $i = 0
+        foreach ($f in $files) {
+            $i++
+            if ($i % 500 -eq 0) {
+                Write-Host "  $i / $($files.Count) files"
+            }
+            $rel = $f.FullName.Substring($root.Length + 1) -replace '/', '\'
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $arc, $f.FullName, $rel) | Out-Null
+        }
+        foreach ($e in $extra) {
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $arc, $e[0], $e[1]) | Out-Null
+        }
+    } finally {
+        $arc.Dispose(); $fs.Close()
     }
-    [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
-        $arc, "$root\README.md", 'README.md') | Out-Null
-} finally {
-    $arc.Dispose(); $fs.Close()
+    $mb = [math]::Round((Get-Item $zipPath).Length / 1MB)
+    Write-Host "wrote $zipPath ($mb MB)"
 }
-$mb = [math]::Round((Get-Item $zip).Length / 1MB)
-Write-Host "wrote $zip ($mb MB)"
+
+New-Item -ItemType Directory -Force "$root\dist" | Out-Null
+$mainZip = "$root\dist\rance7_hd_patch_$Version.zip"
+$gaZip   = "$root\dist\rance7_hd_patch_${Version}_ga.zip"
+
+$all  = Get-ChildItem installer -Recurse -File
+$ga   = @($all | Where-Object { $_.FullName -like '*installer\data\GA\*' })
+$rest = @($all | Where-Object { $_.FullName -notlike '*installer\data\GA\*' })
+
+Write-Zip $mainZip $rest @(, @("$root\README.md", 'README.md'))
+Write-Zip $gaZip   $ga   @()
 
 if (-not $NoUpload) {
-    gh release upload $Version $zip --clobber
+    gh release upload $Version $mainZip $gaZip --clobber
+    if ($LASTEXITCODE -ne 0) { throw "gh release upload failed" }
     Write-Host "uploaded to release $Version"
 }
