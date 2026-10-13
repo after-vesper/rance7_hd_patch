@@ -15,6 +15,7 @@ E.g. `CG_IS_EXIST(64990)` in the code resolves file `cg64991.QNT`.
 | 64990 (0xfdde) | cg64991.QNT | 800x600 | Warning screen ("注意文") |
 | 64991 (0xfddf) | cg64992.QNT | 800x600 | Company logo 1 (non-AliceSoft) |
 | 64992 (0xfde0) | cg64993.QNT | 800x600 | Company logo 2 (non-AliceSoft) |
+| 64999 (0xfde7) | cg64999.QNT | 800x600 | AliceSoft logo CG (vanilla only - jp uses the AliceLogo3.alk movie instead; loaded directly by file number, link row is empty) |
 | ? | cg64990.QNT | 800x600 | Black/aux image preceding the warning set |
 | ? | cg09998.QNT | 800x600 | Dark/background image near startup |
 | ? | cg09999.QNT | 800x600 | Blood splatter graphic (warning screen related) |
