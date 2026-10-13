@@ -552,38 +552,6 @@ public static class HdPatch
     }
 
     /// <summary>
-    /// Rewrite link-table rows of an .ald in place.
-    /// rows: fileNumber -> (disk, pointerTableIndex).
-    /// </summary>
-    public static int PatchLinkRows(string aldPath,
-        Dictionary<int, int[]> rows)
-    {
-        using (var fs = new FileStream(aldPath, FileMode.Open,
-                   FileAccess.ReadWrite, FileShare.None))
-        {
-            var head = new byte[256];
-            fs.Read(head, 0, 256);
-            int ptrSecs = U24(head, 0);
-            var ptable = new byte[ptrSecs * 256];
-            fs.Seek(0, SeekOrigin.Begin);
-            fs.Read(ptable, 0, ptable.Length);
-            long firstData = (long)U24(ptable, 3) << 8;
-            int ltEntries = (int)(firstData - ((long)ptrSecs << 8)) / 3;
-            int n = 0;
-            foreach (var kv in rows)
-            {
-                if (kv.Key < 0 || kv.Key >= ltEntries) continue;
-                fs.Position = ((long)ptrSecs << 8) + kv.Key * 3;
-                fs.WriteByte((byte)(kv.Value[0] + 1));
-                fs.WriteByte((byte)((kv.Value[1] + 1) & 0xFF));
-                fs.WriteByte((byte)(((kv.Value[1] + 1) >> 8) & 0xFF));
-                n++;
-            }
-            return n;
-        }
-    }
-
-    /// <summary>
     /// Rebuild an .ald at dstPath from the original archive, applying
     /// payload overrides/additions from payloadDirs (searched in order;
     /// later dirs win on name collision). Original entry order is

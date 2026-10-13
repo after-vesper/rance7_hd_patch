@@ -217,16 +217,10 @@ Write-Host ""
 Write-Host "[3/4] Rance7GM.ald - applying HD assets (this copies ~1-2 GB) ..."
 Repack-Archive $gmPath 'Rance7GM.ald' 'GM' $mj.archives.'Rance7GM.ald'.disk $movedRows
 
-# keep the remaining archives' link tables consistent (GM copies of the
-# relocated entries remain but are shadowed by the GA redirect)
-foreach ($extra in @('Rance7BA.ald', 'Rance7WA.ald')) {
-    $xp = Join-Path $GameDir $extra
-    if (Test-Path $xp) {
-        Copy-Item $xp (Join-Path $bakDir $extra) -Force
-        $n = [HdPatch]::PatchLinkRows($xp, $movedRows)
-        Write-Host "  $extra : $n link rows updated"
-    }
-}
+# NOTE: Rance7BA.ald / Rance7WA.ald link tables must stay byte-identical.
+# Their rows map BGM/SE file numbers to entries inside the SAME archive -
+# writing CG redirect rows here collides with sound file numbers and
+# breaks audio (verified: wrong hover SE + Music_Prepare failure).
 
 foreach ($f in $mj.files) {
     $src = Join-Path $dataDir ($f.src -replace '/', '\')
