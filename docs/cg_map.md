@@ -87,6 +87,7 @@ E.g. `CG_IS_EXIST(64990)` in the code resolves file `cg64991.QNT`.
 | cg10270-10274 | 58x16, RGBA | Territory action-list category label tags (内政/合戦/建設/？？？/その他). **NEAREST-upscaled** — AI upscale washed out the tag colors. |
 | cg10275 | 25x24, RGBA a=128 | Spent action-count gunbai icon (next to 行動回数). **NEAREST-upscaled** — designed as a uniformly translucent sprite; AI dimmed alpha ~118→73 making it nearly invisible. |
 | cg10276 | 25x24, RGBA opaque | Remaining action-count gunbai icon. NEAREST-upscaled together with cg10275 for pixel fidelity. |
+| cg10103 | 411x14, RGBA {128,179,255} | Yellow selection frame drawn over officers in battle formation. **NEAREST-upscaled** — AI halved alpha AND greyed the yellow fill. |
 | cg10104 | 411x14, RGBA a=128 | Translucent bar strip (rfStatus1). **AI RGB + NEAREST alpha** — AI halved the uniform 128 alpha. |
 | cg13034, cg13072 | 270x270, alpha {0,128,255} | Unit-chara portraits (tagUnitCharaManager). **AI RGB + NEAREST alpha** — AI eroded the quantized 128 alpha regions. |
 | cg30087 (AJP) | 80x19 | Semi-transparent misc sprite. **AI RGB + NEAREST alpha**. |
@@ -124,6 +125,14 @@ absent in vanilla. Three confirmed artifact types and their fixes:
   added beyond the original alpha footprint (cg10249 battle turn gauge,
   cg10118 action gauge, balloons cg10251/253). Fix: NEAREST 2x, or keep AI
   RGB and clamp alpha to the original footprint (nearest-2x mask).
+- **Quantized-alpha erosion** — sprites designed with a few exact alpha
+  levels (0/128/255, uniform 128/179) come back with washed-out gradients.
+  Detected by: source alpha has <=6 distinct values and per-level deviation
+  >15. Fix: **NEAREST 2x** for small flat-color UI (cg10014, cg10103
+  formation frame, cg10122-125, cg10192/193, cg10216, cg10220, cg10242,
+  cg10245, cg10282/10287, cg10702); **AI RGB + NEAREST alpha** for large or
+  detailed art (cg10701 map overlay, unit portraits cg13001/13088/13250/
+  13262/13265/15842/16134/17034/17553/17554, wait icons cg60004-07).
 - **Dark border fill (opaque UI)** — thick black frame lines drawn on
   light button/bar edges (cg10079-81 button sheets, cg10052-10119 bars).
   Fix: **component-based revert** — label connected components of the
