@@ -19,6 +19,7 @@
     python tools/ald.py pack    <indir> <out.ald> [--map-from <ald>] [--disk N]
 """
 
+import mmap
 import os
 import re
 import struct
@@ -133,6 +134,75 @@ def pack(files, out_path, disk=0, link_map=None, map_size=0, extras=None):
     return count
 
 
+def update_in_place(path, payloads):
+    """既存エントリを同名ペイロードでその場差し替えする (差分デプロイ用)。
+
+    新データが元スロットに収まればその場で上書き、収まらなければ
+    データ領域末尾に追記してポインタ表エントリと終端だけ更新する。
+    リンクテーブル(位置index参照)とフッタの件数は変わらない。
+    追記した分だけ旧スロットがデッド領域化するため、繰り返すと
+    アーカイブが膨らむ点に注意 (定期的に pack で再構築すれば圧縮される)。
+
+    payloads: {アーカイブ内名: bytes}。戻り値: {name: 'inplace'|'appended'}。
+    """
+    results = {}
+    f = open(path, 'r+b')
+    mm = mmap.mmap(f.fileno(), 0)
+    try:
+        entries = list_entries(mm)
+        # list_entries は終端(フッタ位置を指す疑似エントリ)も返す。
+        # 実ファイルは名前が空でないエントリで、idx はポインタ表index-1。
+        real = [(idx, e) for idx, e in enumerate(entries) if e[3]]
+        count = len(real)
+        offs = [_u24(mm, i * 3) << 8 for i in range(1, count + 2)]
+        term = offs[-1]
+        if term + 16 != len(mm) or bytes(mm[term:term + 4]) != b'NL\x01\x00':
+            raise ValueError(f'{path}: フッタ位置がデータ終端と一致しません')
+        footer = bytes(mm[term:term + 16])
+        jobs = [(idx, pos, hsize, name) for idx, (pos, hsize, dsize, name, _)
+                in real if name in payloads]
+        missing = set(payloads) - {n for _, _, _, n in jobs}
+        headers = {name: bytearray(mm[pos:pos + hsize])
+                   for _, pos, hsize, name in jobs}
+    finally:
+        mm.close()
+    if missing:
+        raise ValueError(f'{path}: エントリが見つかりません: {sorted(missing)}')
+
+    for idx, pos, hsize, name in jobs:
+        payload = payloads[name]
+        hdr = headers[name]
+        struct.pack_into('<I', hdr, 4, len(payload))
+        need = hsize + len(payload)
+        slot_end = min((o for o in offs if o > pos), default=term)
+        if need <= slot_end - pos:
+            f.seek(pos)
+            f.write(hdr)
+            f.write(payload)
+            pad = slot_end - pos - need
+            if pad:
+                f.write(b'\x00' * pad)
+            results[name] = 'inplace'
+        else:
+            new_pos = term
+            f.seek(new_pos)
+            f.write(hdr)
+            f.write(payload)
+            end = new_pos + need
+            new_term = (end + 255) & ~255
+            f.write(b'\x00' * (new_term - end))
+            f.write(footer)
+            f.seek((idx + 1) * 3)
+            f.write((new_pos >> 8).to_bytes(3, 'little'))
+            f.seek((count + 1) * 3)
+            f.write((new_term >> 8).to_bytes(3, 'little'))
+            offs[idx] = new_pos
+            offs[-1] = term = new_term
+            results[name] = 'appended'
+    f.close()
+    return results
+
+
 def read_extras(data):
     """ファイル名 -> ヘッダ+8の8バイト の辞書を返す。"""
     return {name: extra for _, _, _, name, extra in list_entries(data) if name}
@@ -183,6 +253,19 @@ if __name__ == '__main__':
         cmd_list(sys.argv[2])
     elif cmd == 'extract':
         cmd_extract(sys.argv[2], sys.argv[3])
+    elif cmd == 'update':
+        # ald update <ald> <indir> [名前...] : indir内のペイロードファイルで
+        # 同名エントリをその場差し替え (指定時は名前フィルタ)
+        ald_path, indir = sys.argv[2], sys.argv[3]
+        only = set(sys.argv[4:])
+        payloads = {}
+        for fn in sorted(os.listdir(indir)):
+            p = os.path.join(indir, fn)
+            if os.path.isfile(p) and (not only or fn in only):
+                payloads[fn] = open(p, 'rb').read()
+        res = update_in_place(ald_path, payloads)
+        for n, how in res.items():
+            print(f'{n}: {how}')
     elif cmd == 'pack':
         map_from = disk = None
         args = sys.argv[2:]
