@@ -236,8 +236,9 @@ public static class HdPatch
         return true;
     }
 
-    private static bool CtxMatchAt(List<Instr> ins, int j, System.Collections.ArrayList ctx, int ci)
+    private static bool CtxMatchAt(List<Instr> ins, int j, System.Collections.ArrayList ctx, int ci, Site site)
     {
+        int tokIdx = site != null ? (site.Delta - 2) / 4 : -1;
         for (int k = 0; k < ctx.Count; k++)
         {
             int jj = j + k - ci;
@@ -250,7 +251,15 @@ public static class HdPatch
             var gt = NormOpsTokens(ins[jj].Op, ins[jj].Ops);
             if (gt == null || gt.Count != wt.Count) return false;
             for (int i = 0; i < gt.Count; i++)
+            {
+                // The site's own operand accepts either old or new so an
+                // already-patched operand does not invalidate its own site.
+                if (site != null && k == ci && i == tokIdx &&
+                    wt[i].IsNum && wt[i].Num == site.Old && gt[i].IsNum &&
+                    (gt[i].Num == site.Old || gt[i].Num == site.New))
+                    continue;
                 if (!gt[i].Equals(wt[i])) return false;
+            }
         }
         return true;
     }
@@ -378,7 +387,7 @@ public static class HdPatch
                     {
                         if (!InstrMatches(ins[j], b0.Op, b0.SelfToks, tokIdx))
                             continue;
-                        if (!CtxMatchAt(ins, j, b0.Ctx, b0.CtxIdx)) continue;
+                        if (!CtxMatchAt(ins, j, b0.Ctx, b0.CtxIdx, b0)) continue;
                         matches.Add(j);
                     }
                     if (matches.Count == grp.Count)

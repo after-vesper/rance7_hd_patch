@@ -164,9 +164,12 @@ def build_site(site):
             "n_match": site.get("n_match"), "addr": site["addr"]}
 
 
-def ctx_match_at(ins, j, ctx, ci):
+def ctx_match_at(ins, j, ctx, ci, site=None):
     """Check whether the context window around ins[j] matches the recorded
-    signature. ctx entries are [addr, op, ops]; offsets are relative to ci."""
+    signature. ctx entries are [addr, op, ops]; offsets are relative to ci.
+    The site's own operand (entry ci, token tok_idx) accepts either the old
+    or the new value so an already-patched operand does not invalidate its
+    own site."""
     for k, centry in enumerate(ctx):
         rel = k - ci
         jj = j + rel
@@ -180,8 +183,15 @@ def ctx_match_at(ins, j, ctx, ci):
         gt = norm_ops_tokens(op2, ops2)
         if wt is None:
             continue
-        if gt is None or gt != wt:
+        if gt is None or len(gt) != len(wt):
             return False
+        for i, (g, w) in enumerate(zip(gt, wt)):
+            if site is not None and k == ci and i == site["tok_idx"] \
+                    and w == ("num", site["old"]) \
+                    and g in (("num", site["old"]), ("num", site["new"])):
+                continue
+            if g != w:
+                return False
     return True
 
 
@@ -246,7 +256,7 @@ def main():
                 if not instr_matches(ins[j], b0["op"], b0["self_toks"],
                                      skip_tok=b0["tok_idx"]):
                     continue
-                if not ctx_match_at(ins, j, b0["ctx"], b0["ci"]):
+                if not ctx_match_at(ins, j, b0["ctx"], b0["ci"], site=b0):
                     continue
                 matches.append(j)
             if len(matches) != len(grp_sorted):
