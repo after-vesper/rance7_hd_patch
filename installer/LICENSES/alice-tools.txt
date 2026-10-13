@@ -1,0 +1,18 @@
+alice-tools
+===========
+
+bin\alice.exe is the unmodified official binary of alice-tools 0.13.0
+(https://github.com/nunuhara/alice-tools), downloaded from
+https://github.com/nunuhara/alice-tools/releases/tag/0.13.0
+
+alice-tools is free software licensed under the GNU General Public License
+version 2 or later (GPL-2.0-or-later).
+
+Source code for the exact binary distributed here is available at:
+
+    https://github.com/nunuhara/alice-tools/tree/0.13.0
+
+Written offer: if you cannot obtain the source from the above URL, you may
+request the corresponding source code (same code, as a zip archive) from the
+distributor of this HD patch package at no charge. This offer is valid for
+at least three years from the date of distribution.
