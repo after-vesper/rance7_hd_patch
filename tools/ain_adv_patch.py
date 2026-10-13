@@ -280,6 +280,14 @@ def main(src_path, dst_path):
         struct.pack_into("<i", dec, off, expected * 2)
         patched += 1
 
+    for off, expected in SINGLES25:
+        old = struct.unpack_from("<i", dec, off)[0]
+        if old != expected:
+            raise SystemExit(
+                "想定外の値 @0x%x: %d (期待 %d)" % (off, old, expected))
+        struct.pack_into("<i", dec, off, expected * 2)
+        patched += 1
+
     for lo, hi, pat in PRE2_PATCH:
         i = lo
         while True:
@@ -1506,6 +1514,17 @@ SINGLES24 = [
     (0x1B1170, 65),    # X 境界
     (0x1B11A4, 72),    # Y 境界
     (0x1D6F44, 278),   # updateHeal nY クランプ
+]
+
+# SINGLES25: イベント演出の未2x化箇所
+# tagSill@cutIn1 (織田／美樹保護=CGモード1051): 縦カットイン画像 cg01054 の
+#   固定配置X (SH_LOCALASSIGN nX 510)。縦画像は縦方向スライドするため
+#   Xは定数のまま -> 1020
+# tagSill@cutIn2: 横カットイン画像 cg01055 の固定配置Y
+#   (SH_LOCALASSIGN nY 245) -> 490
+SINGLES25 = [
+    (0x2030CE, 510),   # cutIn1 nX (縦画像スライドの配置X)
+    (0x2032A6, 245),   # cutIn2 nY (横画像スライドの配置Y)
 ]
 
 # PRE2_PATCH: 指定CALLMETHODの直前2個のPUSH即値を2倍化する
