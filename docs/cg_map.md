@@ -146,14 +146,14 @@ absent in vanilla. Three confirmed artifact types and their fixes:
   cg10371, cg10448 (turn-number sheet), cg10105, cg10110, cg10132,
   cg10051, cg10072/73, cg13306/21/36/39/50/75/90, cg13627/648,
   cg14851/52/55, cg50892, cg57011.
-  - Refinement: elongated dark components in the Lanczos reference
-    (borders/rules: long side >=40px and aspect >=4) that intersect the
-    text mask are absorbed WHOLE into the reverted region, so UI lines
-    stay uniform instead of being split into AI/Lanczos fragments
-    (fixed wavy button border on cg10131). Also clamps alpha to the
-    orig 2x footprint. Reapplied to cg10131, cg10130, cg10110, cg12000,
-    cg10371, cg13390, cg10448, cg13648, cg13350, cg10105, cg13575,
-    cg13321.
+  - Refinement: elongated components in the Lanczos reference that
+    intersect the text mask are absorbed WHOLE into the reverted region,
+    so UI lines stay uniform instead of being split into AI/Lanczos
+    fragments. Covers both dark rules (lum<130) and bright highlight
+    lines (lum>200); long side >=40px, aspect >=3 (fixed wavy borders on
+    cg10131). Also clamps alpha to the orig 2x footprint. Applied to
+    cg10130/10131/10101/12000/13336/10371/13306/13390/10448/13550/
+    13648/13350/13627/10132/10110/10098/10105/13575/13321/50892/10051.
 - **White fringe inside semi-transparent edges** (number fonts
   cg10171-173): keep AI RGB + original alpha geometry, decontaminate
   edge RGB by un-blending against the white backing, then remove
