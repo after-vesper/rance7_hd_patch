@@ -110,13 +110,31 @@ if (-not (Test-Path (Join-Path $BackupDir 'Rance7.ain'))) {
 $files = @('Rance7.ain', 'Rance7GM.ald', 'Rance7GA.ald', 'Rance7BA.ald',
            'Rance7WA.ald', 'System40.ini', 'AliceLogo3.alk',
            'DLL\AliceLogo3.dll')
+$restored = @()
 foreach ($f in $files) {
     $src = Join-Path $BackupDir $f
     $dst = Join-Path $GameDir $f
     if (Test-Path $src) {
         Copy-Item -Force $src $dst
+        $restored += ,@($src, $dst, $f)
         Write-Host "restored $f"
     }
 }
+
+# Delete the used backup only after every restored file verifies.
+$bad = @()
+foreach ($r in $restored) {
+    if ((Get-FileHash $r[1]).Hash -ne (Get-FileHash $r[0]).Hash) {
+        $bad += $r[2]
+    }
+}
+if ($bad) {
+    Write-Host "WARNING: verification failed for: $($bad -join ', ')" `
+        -ForegroundColor Yellow
+    Write-Host "Backup '$BackupDir' was kept." -ForegroundColor Yellow
+} else {
+    Remove-Item -Recurse -Force $BackupDir
+    Write-Host "Verified; removed used backup '$BackupDir'." -ForegroundColor DarkGray
+}
 Write-Host ""
-Write-Host "=== Restored from $BackupDir ===" -ForegroundColor Green
+Write-Host "=== Restored from backup ===" -ForegroundColor Green
