@@ -186,3 +186,18 @@ absent in vanilla. Three confirmed artifact types and their fixes:
   sprites wider than 96px (thin bars e.g. cg10278 end-turn button,
   cg10551-69 strips) were first corrupted by a fixed 96px canvas and
   re-processed on a fitted canvas (w+16 x h+32, min 128px).
+
+- **cg10132 prisoner-recruit button fix**: the "recruit" button always
+  appeared enabled because the panel sprite (cg10131, with a baked
+  normal-state button graphic) covered the real button sprites — the
+  panel's z (201) had been doubled to 402 while the button group stayed
+  at 202. Reverted via ain_zfix.py. Asset-side: cg10132 is a 3-state
+  horizontal sheet (normal / disabled / pressed, 528x52 each at 2x).
+  The AI upscaler had invented fat black lines at sheet top/bottom edges;
+  edges were re-blended against a Lanczos 2x of the correctly-decoded
+  original (vanilla edge structure: thin light top line, 1px dark bottom
+  line), and the disabled section's edge lines were flat-filled to the
+  parchment tone. Note: qnt.decode() returns channel COUNT (4), not
+  bytes-per-pixel — feeding its output through the wrong channel count
+  produces a corrupt rainbow/checker reference image, which previously
+  caused noise contamination when written back into edge bands.
