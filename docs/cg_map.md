@@ -85,6 +85,11 @@ E.g. `CG_IS_EXIST(64990)` in the code resolves file `cg64991.QNT`.
 | cg10300 | 800x600, ~303k colors | Main map artwork (AI-upscaled) |
 | cg10301-10xxx | small | Map-related unit/castle icons |
 | cg10270-10274 | 58x16, RGBA | Territory action-list category label tags (内政/合戦/建設/？？？/その他). **NEAREST-upscaled** — AI upscale washed out the tag colors. |
+| cg10275 | 25x24, RGBA a=128 | Spent action-count gunbai icon (next to 行動回数). **NEAREST-upscaled** — designed as a uniformly translucent sprite; AI dimmed alpha ~118→73 making it nearly invisible. |
+| cg10276 | 25x24, RGBA opaque | Remaining action-count gunbai icon. NEAREST-upscaled together with cg10275 for pixel fidelity. |
+| cg10104 | 411x14, RGBA a=128 | Translucent bar strip (rfStatus1). **AI RGB + NEAREST alpha** — AI halved the uniform 128 alpha. |
+| cg13034, cg13072 | 270x270, alpha {0,128,255} | Unit-chara portraits (tagUnitCharaManager). **AI RGB + NEAREST alpha** — AI eroded the quantized 128 alpha regions. |
+| cg30087 (AJP) | 80x19 | Semi-transparent misc sprite. **AI RGB + NEAREST alpha**. |
 
 ## Text / UI misc
 
