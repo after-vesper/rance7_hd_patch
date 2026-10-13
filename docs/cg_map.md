@@ -179,5 +179,7 @@ absent in vanilla. Three confirmed artifact types and their fixes:
   padding the sprite onto a transparent 96x96 canvas, running the normal
   2x upscale, cropping the center back to 2x size, and clamping alpha to
   the orig footprint dilated 1px. Result is smoother than Lanczos and
-  keeps glyph shape. Applied to key-hint labels cg10041-46. 109 such
-  small Lanczos-fallback sprites remain (all <64px).
+  keeps glyph shape. Applied to key-hint labels cg10041-46, then to ALL
+  109 remaining Lanczos-fallback sprites (cg10013/14, cg10158-170,
+  cg10203-246, cg10501-569, cg10702/713, cg12505, ...). No Lanczos
+  fallbacks remain in the GM set.
