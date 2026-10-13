@@ -8,15 +8,75 @@
 #>
 param(
     [string]$GameDir,
-    [string]$BackupDir
+    [string]$BackupDir,
+    [switch]$Elevated
 )
 
 $ErrorActionPreference = 'Stop'
 
+# Same Steam auto-detection as Install.ps1.
+function Find-SteamGame([string]$appId) {
+    $steam = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Valve\Steam' `
+              -ErrorAction SilentlyContinue).InstallPath
+    if (-not $steam) {
+        $steam = (Get-ItemProperty 'HKCU:\Software\Valve\Steam' `
+                  -ErrorAction SilentlyContinue).SteamPath
+    }
+    if (-not $steam -or -not (Test-Path $steam)) { return $null }
+    $libs = @($steam)
+    $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
+    if (Test-Path $vdf) {
+        $raw = Get-Content $vdf -Raw
+        foreach ($m in [regex]::Matches($raw, '"path"\s+"((?:[^"\\]|\\.)+)"')) {
+            $libs += $m.Groups[1].Value -replace '\\\\', '\'
+        }
+        foreach ($m in [regex]::Matches($raw,
+                '(?m)^\s*"\d+"\s+"((?:[^"\\]|\\.)+)"')) {
+            $libs += $m.Groups[1].Value -replace '\\\\', '\'
+        }
+    }
+    foreach ($lib in ($libs | Select-Object -Unique)) {
+        $acf = Join-Path $lib "steamapps\appmanifest_$appId.acf"
+        if (Test-Path $acf) {
+            $m = [regex]::Match((Get-Content $acf -Raw),
+                 '"installdir"\s+"([^"]+)"')
+            if ($m.Success) {
+                $dir = Join-Path $lib ('steamapps\common\' + $m.Groups[1].Value)
+                if (Test-Path (Join-Path $dir 'Rance7.exe')) { return $dir }
+            }
+        }
+        $dir = Join-Path $lib 'steamapps\common\Sengoku Rance'
+        if (Test-Path (Join-Path $dir 'Rance7.exe')) { return $dir }
+    }
+    return $null
+}
+
 if (-not $GameDir) {
-    $GameDir = Read-Host "Path to the Sengoku Rance install folder"
+    $GameDir = Find-SteamGame '3867170'
+    if ($GameDir) {
+        Write-Host "Detected install: $GameDir" -ForegroundColor Green
+    } else {
+        $GameDir = Read-Host "Path to the Sengoku Rance install folder"
+    }
 }
 $GameDir = $GameDir.Trim().Trim('"').TrimEnd('\', '/')
+
+# Writing under Program Files requires elevation; relaunch elevated if needed.
+$probe = Join-Path $GameDir (".hd_write_test_" + [guid]::NewGuid().ToString('N'))
+try {
+    [IO.File]::WriteAllText($probe, 'x'); Remove-Item $probe -Force
+} catch {
+    Write-Host "No write access to '$GameDir' - requesting administrator rights..." `
+        -ForegroundColor Yellow
+    $args = @('-NoProfile', '-ExecutionPolicy', 'Bypass',
+              '-File', "`"$PSCommandPath`"",
+              '-GameDir', "`"$GameDir`"")
+    if ($BackupDir) { $args += @('-BackupDir', "`"$BackupDir`"") }
+    $args += '-Elevated'
+    Start-Process powershell -Verb RunAs -ArgumentList $args
+    exit 0
+}
+
 if (-not (Test-Path (Join-Path $GameDir 'Rance7.ain'))) {
     Write-Host "ERROR: Rance7.ain not found in '$GameDir'" -ForegroundColor Red
     exit 1

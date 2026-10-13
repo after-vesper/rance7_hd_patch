@@ -16,7 +16,8 @@
     powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1 -GameDir D:\Games\SengokuRance
 #>
 param(
-    [string]$GameDir
+    [string]$GameDir,
+    [switch]$Elevated
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,10 +26,53 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 function Fail([string]$msg) {
     Write-Host ""
     Write-Host "ERROR: $msg" -ForegroundColor Red
+    if ($Elevated) { Read-Host "Press Enter to close" | Out-Null }
     exit 1
 }
 
 function Sha256([string]$p) { (Get-FileHash -Algorithm SHA256 $p).Hash }
+
+# Locate the game via Steam: registry -> libraryfolders.vdf ->
+# appmanifest_<appid>.acf (installdir is authoritative).
+function Find-SteamGame([string]$appId) {
+    $steam = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Valve\Steam' `
+              -ErrorAction SilentlyContinue).InstallPath
+    if (-not $steam) {
+        $steam = (Get-ItemProperty 'HKCU:\Software\Valve\Steam' `
+                  -ErrorAction SilentlyContinue).SteamPath
+    }
+    if (-not $steam -or -not (Test-Path $steam)) { return $null }
+
+    $libs = @($steam)
+    $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
+    if (Test-Path $vdf) {
+        $raw = Get-Content $vdf -Raw
+        # current format: "path"  "C:\\Steam"
+        foreach ($m in [regex]::Matches($raw, '"path"\s+"((?:[^"\\]|\\.)+)"')) {
+            $libs += $m.Groups[1].Value -replace '\\\\', '\'
+        }
+        # legacy format: "1"  "D:\\SteamLibrary"
+        foreach ($m in [regex]::Matches($raw,
+                '(?m)^\s*"\d+"\s+"((?:[^"\\]|\\.)+)"')) {
+            $libs += $m.Groups[1].Value -replace '\\\\', '\'
+        }
+    }
+
+    foreach ($lib in ($libs | Select-Object -Unique)) {
+        $acf = Join-Path $lib "steamapps\appmanifest_$appId.acf"
+        if (Test-Path $acf) {
+            $m = [regex]::Match((Get-Content $acf -Raw),
+                 '"installdir"\s+"([^"]+)"')
+            if ($m.Success) {
+                $dir = Join-Path $lib ('steamapps\common\' + $m.Groups[1].Value)
+                if (Test-Path (Join-Path $dir 'Rance7.exe')) { return $dir }
+            }
+        }
+        $dir = Join-Path $lib 'steamapps\common\Sengoku Rance'
+        if (Test-Path (Join-Path $dir 'Rance7.exe')) { return $dir }
+    }
+    return $null
+}
 
 # ---------- prerequisites ----------
 
@@ -46,9 +90,30 @@ foreach ($req in @($aliceExe, $csPath, $manifest, $sites)) {
 if (-not $GameDir) {
     Write-Host "Sengoku Rance HD patch installer" -ForegroundColor Cyan
     Write-Host ""
-    $GameDir = Read-Host "Path to the Sengoku Rance install folder (contains Rance7.exe)"
+    $GameDir = Find-SteamGame '3867170'
+    if ($GameDir) {
+        Write-Host "Detected install: $GameDir" -ForegroundColor Green
+        Write-Host ""
+    } else {
+        Write-Host "Steam auto-detection failed." -ForegroundColor Yellow
+        $GameDir = Read-Host "Path to the Sengoku Rance install folder (contains Rance7.exe)"
+    }
 }
 $GameDir = $GameDir.Trim().Trim('"').TrimEnd('\', '/')
+
+# Writing under Program Files requires elevation; relaunch elevated if needed.
+$probe = Join-Path $GameDir (".hd_write_test_" + [guid]::NewGuid().ToString('N'))
+try {
+    [IO.File]::WriteAllText($probe, 'x'); Remove-Item $probe -Force
+} catch {
+    Write-Host "No write access to '$GameDir' - requesting administrator rights..." `
+        -ForegroundColor Yellow
+    $args = @('-NoProfile', '-ExecutionPolicy', 'Bypass',
+              '-File', "`"$PSCommandPath`"",
+              '-GameDir', "`"$GameDir`"", '-Elevated')
+    Start-Process powershell -Verb RunAs -ArgumentList $args
+    exit 0
+}
 $ainPath = Join-Path $GameDir 'Rance7.ain'
 $iniPath = Join-Path $GameDir 'System40.ini'
 if (-not (Test-Path $ainPath)) { Fail "Rance7.ain not found in '$GameDir'" }
@@ -245,3 +310,4 @@ Write-Host ""
 Write-Host "=== HD patch applied ===" -ForegroundColor Green
 Write-Host "Backup: $bakDir"
 Write-Host "To revert, run Uninstall.ps1 and pick this backup folder."
+if ($Elevated) { Read-Host "Press Enter to close" | Out-Null }
