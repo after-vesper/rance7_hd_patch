@@ -61,11 +61,21 @@ E.g. `CG_IS_EXIST(64990)` in the code resolves file `cg64991.QNT`.
 | cg45xxx-57xxx | various | Battle/game CGs |
 | cg49000-49074 | 152x78 | Battle effect sprites (~60 files) |
 
+## Main map / territory selection
+
+| File | Size (orig) | Usage |
+|---|---|---|
+| cg10296 | 800x600, 32 colors | Territory color mask for region hit-testing. **NEAREST-upscaled, never AI/Lanczos** — color values must be preserved exactly or territory selection breaks. |
+| cg10298 | 800x600, 4 colors | Companion map mask (same treatment as cg10296) |
+| cg10299 | 800x600, 777 colors | Map overlay (AI-upscaled) |
+| cg10300 | 800x600, ~303k colors | Main map artwork (AI-upscaled) |
+| cg10301-10xxx | small | Map-related unit/castle icons |
+
 ## Text / UI misc
 
 | File | Size (orig) | Usage |
 |---|---|---|
-| cg60004-60007 | 24x24 | Text-advance wait icons (tagWaitIconManager) - intentionally NOT upscaled |
+| cg60004-60007 | 24x24 | Text-advance wait icons (tagWaitIconManager) |
 
 ## Archive layout notes
 
