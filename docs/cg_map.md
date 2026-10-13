@@ -182,4 +182,7 @@ absent in vanilla. Three confirmed artifact types and their fixes:
   keeps glyph shape. Applied to key-hint labels cg10041-46, then to ALL
   109 remaining Lanczos-fallback sprites (cg10013/14, cg10158-170,
   cg10203-246, cg10501-569, cg10702/713, cg12505, ...). No Lanczos
-  fallbacks remain in the GM set.
+  fallbacks remain in the GM set. Canvas must be >= the sprite size:
+  sprites wider than 96px (thin bars e.g. cg10278 end-turn button,
+  cg10551-69 strips) were first corrupted by a fixed 96px canvas and
+  re-processed on a fitted canvas (w+16 x h+32, min 128px).
