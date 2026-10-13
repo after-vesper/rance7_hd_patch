@@ -163,6 +163,19 @@ Copy-Item game/Rance7GM.ald.orig game/Rance7GM.ald -Force
 Vanilla content renders in the top-left 800x600 of the client; all click
 coordinates above are for the HD build — halve them for vanilla navigation.
 
+## Asset deploy workflow (iteration vs release)
+
+- **Iteration**: `python work/deploy_diff.py cgNNNNN [...]` — encodes only
+  the named PNGs (from `work/ai_dst_misc` / `work/ai_dst_gm`) and patches
+  the GA/GM volume in place via `ald.update_in_place` (in-place overwrite
+  when the new payload fits the old slot, append + pointer-table update
+  otherwise). Seconds, not minutes. Works for QNT and AJP.
+- **Release / cleanup**: `python work/deploy_ai.py` — full repack from the
+  source archives. Appended entries leave dead space in the file, so run
+  this once before shipping to compact the volumes.
+- After any deploy, verify: all volumes < 2GB, `list_entries` sane, and
+  link-table resolution still maps every CG ID to the right filename.
+
 ## Asset patching rules (do not forget)
 
 - Always extract QNTs from `*.orig` archives, never from live/patched ones
