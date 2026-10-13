@@ -61,6 +61,13 @@ E.g. `CG_IS_EXIST(64990)` in the code resolves file `cg64991.QNT`.
 | cg45xxx-57xxx | various | Battle/game CGs |
 | cg49000-49074 | 152x78 | Battle effect sprites (~60 files) |
 
+## Event cut-in effects
+
+| CG ID (AIN) | File | Size (orig) | Usage |
+|---|---|---|---|
+| 1053 | cg01054.QNT | 216x871 | シィル氷づけ vertical cut-in (織田／美樹保護 = CG-mode #6). Slides vertically; fixed X=510 -> 1020 in `tagSill@cutIn1`. |
+| 1054 | cg01055.QNT | 739x227 | シィル氷づけ horizontal cut-in. Slides horizontally; fixed Y=245 -> 490 in `tagSill@cutIn2`. |
+
 ## Main map / territory selection
 
 | File | Size (orig) | Usage |
