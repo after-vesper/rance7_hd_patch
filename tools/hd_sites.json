@@ -1,6 +1,6 @@
 {
 "code_base": 24,
-"count": 3101,
+"count": 3102,
 "sites": [
 {
 "func": "tagWaitIconManager@0",
@@ -148388,6 +148388,49 @@
 5954248,
 "CALLFUNC",
 "*"
+]
+],
+"rank": 0,
+"n_match": 1
+},
+{
+"func": "tagBattleFuyo@setPos",
+"idx": 34,
+"addr": 1881434,
+"delta": 10,
+"op": ".LOCALPLUSA",
+"old": 15,
+"new": 30,
+"ctx": [
+[
+1881420,
+"SH_LOCALREF",
+"0x5"
+],
+[
+1881426,
+"CALLMETHOD",
+"*"
+],
+[
+1881432,
+"POP",
+""
+],
+[
+1881434,
+".LOCALPLUSA",
+"nX2 15"
+],
+[
+1881452,
+"JUMP",
+"*"
+],
+[
+1881458,
+"RETURN",
+""
 ]
 ],
 "rank": 0,
