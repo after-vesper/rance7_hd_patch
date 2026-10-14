@@ -19,10 +19,12 @@ simpler transport does not limit the GPU.
 """
 
 import argparse
+import hashlib
 import json
 import math
 import multiprocessing as mp
 import os
+import struct
 import sys
 import threading
 import time
@@ -55,6 +57,22 @@ BATCH_CANDIDATES = (4, 8, 16)
 
 NO_GPU = {'nearest', 'lanczos', 'manual'}
 
+# Console output is shared between the drain thread's in-place progress
+# bar and plain status prints from the main thread; a lock + line-length
+# tracker keeps them from interleaving on the same row.
+_IO_LOCK = threading.Lock()
+_prog_line_len = [0]
+
+
+def _log(msg):
+    """Print a whole line, clearing any in-progress bar first."""
+    with _IO_LOCK:
+        if _prog_line_len[0]:
+            sys.stdout.write('\r' + ' ' * _prog_line_len[0] + '\r')
+            _prog_line_len[0] = 0
+        print(msg, flush=True)
+
+
 # ---------------------------------------------------------------- worker
 
 _w = None  # per-worker state
@@ -74,6 +92,8 @@ def _worker_main(wid, job_q, req_q, res_q, mft_q, out_dir, emit_qnt):
     _w.req_q = req_q
     _w.out_dir = out_dir
     _w.wid = wid
+    _w.cache_dir = os.environ.get('GEN_CACHE_DIR')
+    _w.cache_tag = os.environ.get('GEN_CACHE_TAG', '')
     _w.seq = 0
     _w.pending = {}
     _w.slots = threading.Semaphore(PENDING_MAX)
@@ -99,6 +119,29 @@ def _worker_main(wid, job_q, req_q, res_q, mft_q, out_dir, emit_qnt):
     _w.fin.shutdown(wait=True)
 
 
+def _cache_key(src, rec):
+    h = hashlib.sha256(_w.cache_tag.encode())
+    h.update(rec.encode())
+    h.update(src)
+    return h.hexdigest()
+
+
+def _cache_get(key):
+    p = os.path.join(_w.cache_dir, key)
+    if os.path.exists(p):
+        with open(p, 'rb') as f:
+            return f.read()
+    return None
+
+
+def _cache_put(key, blob):
+    p = os.path.join(_w.cache_dir, key)
+    tmp = '%s.%d.tmp' % (p, _w.wid)
+    with open(tmp, 'wb') as f:
+        f.write(blob)
+    os.replace(tmp, p)
+
+
 def _start_job(spec):
     arch, var, fn, rec, order = spec
     src, at = ga.src_payload(_w.alds, fn, order)
@@ -106,11 +149,18 @@ def _start_job(spec):
         raise FileNotFoundError('no source for %s' % fn)
     if rec == 'manual':
         return  # exception payloads are placed separately
+    ckey = None
+    if _w.cache_dir and _w.emit_qnt:
+        ckey = _cache_key(src, rec)
+        blob = _cache_get(ckey)
+        if blob is not None:
+            _cache_hit(spec, at, blob)
+            return
     si = ajp.decode_rgba(src) if fn.lower().endswith('.ajp') \
         else ga.to_img(src)
     if rec in NO_GPU:
         out = gr.apply(rec, si)
-        _save_and_report(spec, at, out, src)
+        _save_and_report(spec, at, out, src, ckey)
         return
     # build model input image (padded_ai uses a canvas)
     inp_im = si.convert('RGB')
@@ -131,7 +181,7 @@ def _start_job(spec):
         # sub-overlap: single native-size inference (raw HWC RGB)
         _w.pending[seq] = {'si': si, 'recipe': rec, 'name': fn,
                            'arch': arch, 'var': var, 'src': at,
-                           'srcbytes': src,
+                           'srcbytes': src, 'ckey': ckey,
                            'outs': {}, 'left': 1,
                            'W': W2 * 2, 'H': H2 * 2,
                            'native': (W2, H2)}
@@ -141,7 +191,7 @@ def _start_job(spec):
     meta_tiles, items = gf.prepare_tiles(inp_im)
     _w.pending[seq] = {'si': si, 'recipe': rec, 'name': fn,
                        'arch': arch, 'var': var, 'src': at,
-                       'srcbytes': src,
+                       'srcbytes': src, 'ckey': ckey,
                        'tiles': meta_tiles, 'outs': {},
                        'left': len(items), 'W': W2 * 2, 'H': H2 * 2,
                        'native': None}
@@ -199,10 +249,29 @@ def _finish(seq, j):
         rgb = gf.combine(j['tiles'], ims, j['W'], j['H'])
     out = gr.apply(j['recipe'], j['si'], rgb=rgb)
     _save_and_report((j['arch'], j['var'], j['name'], j['recipe'], None),
-                     j['src'], out, j.get('srcbytes'))
+                     j['src'], out, j.get('srcbytes'), j.get('ckey'))
 
 
-def _save_and_report(spec, src, out, src_bytes=None):
+def _cache_hit(spec, src_at, blob):
+    """Cache hit: the payload was already generated from identical
+    source bytes (e.g. a re-install after an external patch). Emit the
+    stored bytes verbatim and report the manifest entry."""
+    arch, var, fn, rec, _ = spec
+    d = os.path.join(_w.out_dir, arch, var)
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, fn), 'wb') as f:
+        f.write(blob)
+    # bpp for the manifest: QNT alpha flag at 0x28, AJP alpha_size 0x20
+    if fn.lower().endswith('.ajp'):
+        bpp = 32 if struct.unpack_from('<I', blob, 0x20)[0] else 24
+    else:
+        bpp = 32 if struct.unpack_from('<I', blob, 0x28)[0] else 24
+    _w.mft_q.put(('%s/%s' % (arch, var), fn,
+                  {'x': 0, 'y': 0, 'bpp': bpp,
+                   'recipe': rec, 'src': src_at, 'cache': 'hit'}))
+
+
+def _save_and_report(spec, src, out, src_bytes=None, ckey=None):
     """Write the finished asset. Default: PNG intermediate; with
     --emit-qnt write the final payload bytes (QNT/AJP) directly so the
     repack phase degenerates to a byte copy."""
@@ -224,6 +293,11 @@ def _save_and_report(spec, src, out, src_bytes=None):
                 out, out.mode in ('RGBA', 'LA', 'PA'), level=6)
         with open(os.path.join(d, fn), 'wb') as f:
             f.write(blob)
+        if ckey is not None:
+            try:
+                _cache_put(ckey, blob)
+            except OSError:
+                pass  # cache is an optimisation; never fail the job
     else:
         out.save(os.path.join(d, fn[:-4] + '.png'))
     _w.mft_q.put(('%s/%s' % (arch, var), fn,
@@ -258,13 +332,12 @@ def calibrate_batch(s, inp):
     BATCH = best_n
     prov = s.get_providers()[0] if s.get_providers() else '?'
     rate = 1.0 / best_t if best_t else 0.0
-    print('gpu calibration: provider=%s batch=%d (%.1f tiles/s)%s'
-          % (prov, best_n, rate,
-             '' if best_t else ' [provider probe failed]'), flush=True)
+    _log('gpu calibration: provider=%s batch=%d (%.1f tiles/s)%s'
+         % (prov, best_n, rate,
+            '' if best_t else ' [provider probe failed]'))
     if rate and rate < 3.0:
-        print('WARNING: inference is very slow (CPU-only path?); '
-              'full generation may take hours on this machine',
-              flush=True)
+        _log('WARNING: inference is very slow (CPU-only path?); '
+             'full generation may take hours on this machine')
     return BATCH
 
 
@@ -303,9 +376,8 @@ def gpu_loop(req_q, res_qs, n_workers):
             break
     for q in res_qs:
         q.put(None)
-    print('gpu: %d tiles in %.1fs (%.1f tiles/s)'
-          % (n_in, time.time() - t0, n_in / (time.time() - t0)),
-          flush=True)
+    _log('gpu: %d tiles in %.1fs (%.1f tiles/s)'
+         % (n_in, time.time() - t0, n_in / (time.time() - t0)))
 
 
 def _run_batch(tiles, res_qs, s, inp):
@@ -340,6 +412,42 @@ def _run_batch(tiles, res_qs, s, inp):
 # ------------------------------------------------------------------ main
 
 
+CACHE_TAG_VERSION = 'v1'
+
+
+def _avail_commit_mb():
+    """Remaining system commit (RAM + pagefile) in MB, or None when the
+    value cannot be determined (non-Windows)."""
+    try:
+        import ctypes
+
+        class _MS(ctypes.Structure):
+            _fields_ = [('dwLength', ctypes.c_ulong),
+                        ('dwMemoryLoad', ctypes.c_ulong),
+                        ('ullTotalPhys', ctypes.c_ulonglong),
+                        ('ullAvailPhys', ctypes.c_ulonglong),
+                        ('ullTotalPageFile', ctypes.c_ulonglong),
+                        ('ullAvailPageFile', ctypes.c_ulonglong),
+                        ('ullTotalVirtual', ctypes.c_ulonglong),
+                        ('ullAvailVirtual', ctypes.c_ulonglong),
+                        ('ullAvailExtendedVirtual', ctypes.c_ulonglong)]
+
+        st = _MS()
+        st.dwLength = ctypes.sizeof(_MS)
+        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st))
+        return st.ullAvailPageFile >> 20
+    except Exception:
+        return None
+
+
+def _sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    return h.hexdigest()[:16]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--out', default=os.path.join(ROOT, 'work',
@@ -362,9 +470,24 @@ def main():
                     help='recipe manifest json path')
     ap.add_argument('--data', default=None,
                     help='installer payload dir used to enumerate names')
+    ap.add_argument('--cache-dir', default=None,
+                    help='persistent payload cache dir keyed by source '
+                         'content hash (survives re-installs; '
+                         '--emit-qnt only)')
     args = ap.parse_args()
     if args.workers <= 0:
         args.workers = max(4, min(16, (os.cpu_count() or 8) // 2))
+        avail = _avail_commit_mb()
+        if avail is not None:
+            # each worker commits ~500 MB (interpreter + numpy/scipy/ort
+            # + in-flight image buffers); cap so other apps and the OS
+            # still have headroom instead of hitting the commit limit
+            mem_cap = max(2, avail // 500)
+            if mem_cap < args.workers:
+                args.workers = mem_cap
+                print('workers capped at %d by available commit '
+                      '(%d MB free)' % (args.workers, avail),
+                      flush=True)
     # export install-mode settings before spawning workers (spawned
     # processes re-import modules and pick these up from the env)
     if args.model:
@@ -380,7 +503,18 @@ def main():
     if args.data:
         os.environ['GEN_DATA'] = os.path.abspath(args.data)
         gp.DATA = os.environ['GEN_DATA']
-    print('workers=%d' % args.workers, flush=True)
+    if args.cache_dir and args.emit_qnt:
+        cache_dir = os.path.abspath(args.cache_dir)
+        os.makedirs(cache_dir, exist_ok=True)
+        os.environ['GEN_CACHE_DIR'] = cache_dir
+        # tag = generator version + model identity; a payload is only
+        # reusable when the same model produced it
+        tag = CACHE_TAG_VERSION
+        if ga.MODEL and os.path.exists(ga.MODEL):
+            tag += ':' + _sha256_file(ga.MODEL)
+        os.environ['GEN_CACHE_TAG'] = tag
+        _log('payload cache: %s' % cache_dir)
+    _log('workers=%d' % args.workers)
 
     mani = gp.load_manifest()
     order_map = {'vanilla': ['vanilla', 'jp'], 'jp': ['jp', 'vanilla'],
@@ -411,7 +545,7 @@ def main():
         specs.append((arch, var, fn, rec, order_map[var]))
     if args.limit:
         specs = specs[:args.limit]
-    print('%d payloads to generate' % len(specs), flush=True)
+    _log('%d payloads to generate' % len(specs))
 
     ctx = mp.get_context('spawn')
     job_q = ctx.Queue()
@@ -426,6 +560,39 @@ def main():
     meta = {}
     n_done = n_err = 0
     expect = len(specs)
+    is_tty = sys.stdout.isatty()
+    t_prog = time.time()
+    prog_at = [0.0]
+
+    def fmt_eta(sec):
+        if not math.isfinite(sec) or sec < 0:
+            return '--:--'
+        return '%d:%02d' % divmod(int(sec), 60)
+
+    def show_progress(final=False):
+        now = time.time()
+        if not final and now - prog_at[0] < 0.25:
+            return
+        prog_at[0] = now
+        tot = n_done + n_err
+        frac = min(1.0, tot / max(1, expect))
+        bar = '#' * int(frac * 28)
+        bar = bar.ljust(28, '-')
+        rate = tot / max(0.001, now - t_prog)
+        eta = (expect - tot) / rate if rate > 0 else float('inf')
+        line = ('[%s] %d/%d %5.1f%%  %.1f/s  err %d  eta %s'
+                % (bar, tot, expect, frac * 100.0, rate, n_err,
+                   fmt_eta(eta)))
+        if is_tty:
+            with _IO_LOCK:
+                pad = max(0, _prog_line_len[0] - len(line))
+                _prog_line_len[0] = len(line)
+                sys.stdout.write('\r' + line + ' ' * pad)
+                sys.stdout.flush()
+                if final:
+                    sys.stdout.write('\n')
+        elif final or tot % 200 == 0:
+            _log(line)
 
     def drain_mft():
         nonlocal n_done, n_err
@@ -434,15 +601,13 @@ def main():
             if m is None:
                 return
             if m[0] == 'ERR':
-                print(m[1], flush=True)
+                _log(m[1])
                 n_err += 1
             else:
                 sub, fn, info = m
                 meta.setdefault(sub, {})[fn] = info
                 n_done += 1
-                if (n_done + n_err) % 200 == 0:
-                    print('%d/%d done (%d err)'
-                          % (n_done, expect, n_err), flush=True)
+            show_progress()
 
     dt = threading.Thread(target=drain_mft, daemon=True)
     dt.start()
@@ -458,6 +623,7 @@ def main():
         p.join()
     mft_q.put(None)
     dt.join()
+    show_progress(final=True)
 
     for sub, m in meta.items():
         d = os.path.join(args.out, sub)
@@ -465,8 +631,10 @@ def main():
         with open(os.path.join(d, 'manifest.json'), 'w',
                   encoding='utf-8') as f:
             json.dump(m, f, ensure_ascii=False, indent=1)
-    print('done: %d generated, %d errors -> %s'
-          % (n_done, n_err, args.out))
+    hits = sum(1 for m in meta.values() for i in m.values()
+               if i.get('cache'))
+    _log('done: %d generated (%d cache hits), %d errors -> %s'
+         % (n_done, hits, n_err, args.out))
 
 
 if __name__ == '__main__':

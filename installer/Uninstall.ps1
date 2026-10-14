@@ -135,6 +135,18 @@ if ($bad) {
 } else {
     Remove-Item -Recurse -Force $BackupDir
     Write-Host "Verified; removed used backup '$BackupDir'." -ForegroundColor DarkGray
+    # originals verified: clear the install-state marker so Install.ps1
+    # can run again
+    Remove-Item -Force (Join-Path $GameDir 'hd_patch.state') `
+        -ErrorAction SilentlyContinue
 }
+
+# leftover generation intermediates / temp archives are safe to drop
+Get-ChildItem $GameDir -Directory -Filter 'hd_gen_*' `
+    -ErrorAction SilentlyContinue |
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Get-ChildItem $GameDir -File -Filter '*.hdtmp' `
+    -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
 Write-Host ""
 Write-Host "=== Restored from backup ===" -ForegroundColor Green

@@ -127,6 +127,34 @@ if (Get-Process -Name Rance7 -ErrorAction SilentlyContinue) {
     Fail "Rance7.exe is running - close the game first."
 }
 
+# ---------- interrupted / already-installed guard ----------
+#
+# hd_patch.state is written just before the first file replacement and
+# stays until Uninstall.ps1 removes it. If a previous run died after the
+# repack began, the game archives may already be HD - backing those up
+# and regenerating from them would double-upscale the assets, so refuse
+# and make the user restore first.
+$statePath = Join-Path $GameDir 'hd_patch.state'
+if (Test-Path $statePath) {
+    $prev = (Get-Content $statePath -Raw -ErrorAction SilentlyContinue)
+    if ($prev -match 'in-progress') {
+        Fail ("a previous install was interrupted while files were " +
+              "being replaced.`nRun Uninstall.ps1 to restore the backup " +
+              "first, then re-run the installer.")
+    }
+    Fail ("the HD patch is already applied to this install.`n" +
+          "Run Uninstall.ps1 first if you want to revert it.")
+}
+
+# Stale intermediates from an interrupted generation run (never reached
+# the modification phase, so the game files are still pristine).
+Get-ChildItem $GameDir -Directory -Filter 'hd_gen_*' `
+    -ErrorAction SilentlyContinue |
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Get-ChildItem $GameDir -File -Filter '*.hdtmp' `
+    -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+
 # ---------- variant detection ----------
 
 $ainHash = (Sha256 $ainPath).Substring(0, 16)
@@ -157,8 +185,9 @@ Write-Host ""
 
 # ---------- free space check (repack needs orig + new archive) ----------
 
-# orig archives + new archives + ~2.5 GB of generated intermediates
-$need = (Get-Item $gmPath).Length + (Get-Item $gaPath).Length + 5GB
+# orig archives + new archives + generated intermediates + persistent
+# payload cache (~2.5 GB each)
+$need = (Get-Item $gmPath).Length + (Get-Item $gaPath).Length + 8GB
 $drive = (Get-Item $GameDir).PSDrive
 $free = (Get-PSDrive $drive.Name).Free
 if ($free -lt $need) {
@@ -194,6 +223,26 @@ Add-Type -TypeDefinition (Get-Content $csPath -Raw) `
          -ReferencedAssemblies 'System.Web.Extensions'
 $log = { param($m) Write-Host "  $m" }
 
+# repack progress bar (in-place); suppressed when output is redirected
+$isRedir = [Console]::IsOutputRedirected
+$repackProg = [Action[long,long]]{
+    param($done, $total)
+    if ($isRedir) { return }
+    $frac = if ($total -gt 0) {
+        [Math]::Min(1.0, $done / [double]$total)
+    } else { 0.0 }
+    $fill = [int]($frac * 28)
+    # note: "-f" inside a method-call argument list would parse the
+    # operand commas as argument separators - build the string first
+    $line = "[{0}{1}] {2,6:N0}/{3:N0} MB {4,5:F1}%  " -f
+        ('#' * $fill), ('-' * (28 - $fill)),
+        ($done / 1MB), ($total / 1MB), ($frac * 100)
+    [Console]::Write("`r" + $line)
+}
+$clearBar = {
+    if (-not $isRedir) { [Console]::Write("`r" + (' ' * 76) + "`r") }
+}
+
 # ---------- HD asset generation (embedded python + onnxruntime/DML) ----------
 #
 # The installer ships the inference model + recipe manifest instead of
@@ -203,18 +252,21 @@ $log = { param($m) Write-Host "  $m" }
 
 $pyExe   = Join-Path $Root 'runtime\python.exe'
 $genDir  = Join-Path $GameDir "hd_gen_$stamp"
+$cacheDir = Join-Path $GameDir 'hd_cache'
 $expect  = @{}
 if (-not (Test-Path $pyExe)) { Fail "missing installer file: $pyExe" }
 
 Write-Host ""
 Write-Host "[1/5] Generating HD assets from your game data ..."
-Write-Host "      (AI upscaling; ~20-30 min with a DirectML-capable GPU)"
+Write-Host "      (AI upscaling; ~20-30 min with a DirectML-capable GPU,"
+Write-Host "       faster on re-install thanks to the payload cache)"
 $pyArgs = @(
     (Join-Path $Root 'gen\gen_ring.py'),
     '--emit-qnt',
     '--asset-set', $assetSet,
     '--src-dir',   $bakDir,
     '--out',       $genDir,
+    '--cache-dir', $cacheDir,
     '--model',     (Join-Path $Root 'gen\model.onnx'),
     '--manifest',  (Join-Path $Root 'gen\recipe_manifest.json')
 )
@@ -248,22 +300,31 @@ if ($got -lt $want) {
 }
 Write-Host "  generated $got payloads -> $genDir"
 
-# AliceLogo3.alk gets the same treatment: decode each entry from the
-# user's backed-up original, upscale 2x, repack the ALK container.
+# AliceLogo3.* only exists when the JP patch installed the newer logo
+# plugin; vanilla Steam installs carry AliceLogo2.dll instead and have
+# no .alk at all, so every step below is conditional on the backup.
+$alkSrc = Join-Path $bakDir 'AliceLogo3.alk'
 $alkGen = Join-Path $genDir 'files\AliceLogo3.alk'
-& $pyExe (Join-Path $Root 'gen\gen_alk.py') `
-    --src (Join-Path $bakDir 'AliceLogo3.alk') --dst $alkGen
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $alkGen)) {
-    Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
-    Fail "AliceLogo3 generation failed - nothing was modified (backup: $bakDir)"
+if (Test-Path $alkSrc) {
+    # decode each entry from the backed-up original, upscale 2x,
+    # repack the ALK container (whole-output cache keyed on src bytes)
+    & $pyExe (Join-Path $Root 'gen\gen_alk.py') `
+        --src $alkSrc --dst $alkGen --cache-dir $cacheDir
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $alkGen)) {
+        Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
+        Fail "AliceLogo3 generation failed - nothing was modified (backup: $bakDir)"
+    }
+    Write-Host "  AliceLogo3.alk regenerated (80 frames upscaled)"
+} else {
+    Write-Host "  AliceLogo3.alk not present in this install - skipped"
 }
-Write-Host "  AliceLogo3.alk regenerated (80 frames upscaled)"
 
 # DLL\AliceLogo3.dll: the shipped binary is just the user's original
 # plugin with two 800x600 -> 1600x1200 constants patched (8 bytes
 # total). Patch the backed-up copy instead of shipping the binary.
 $dllSrc = Join-Path $bakDir 'DLL\AliceLogo3.dll'
 $dllOut = Join-Path $genDir 'files\DLL\AliceLogo3.dll'
+if (Test-Path $dllSrc) {
 $dllBytes = [IO.File]::ReadAllBytes($dllSrc)
 $dllPatch = @(
     @(0x1312,  0x0320, 0x0640), @(0x131c,  0x0258, 0x04b0),
@@ -272,8 +333,7 @@ $dllPatch = @(
 $dllChanged = 0
 foreach ($p in $dllPatch) {
     $o = $p[0]
-    $cur = $dllBytes[$o] -bor ($dllBytes[$o+1] -shl 8) -bor
-           ($dllBytes[$o+2] -shl 16) -bor ($dllBytes[$o+3] -shl 24)
+    $cur = [BitConverter]::ToInt32($dllBytes, $o)
     if ($cur -eq $p[1]) {
         $v = $p[2]
         $dllBytes[$o]   = $v -band 0xff
@@ -282,16 +342,23 @@ foreach ($p in $dllPatch) {
         $dllBytes[$o+3] = ($v -shr 24) -band 0xff
         $dllChanged++
     } elseif ($cur -ne $p[2]) {
-        Write-Host ("  ! AliceLogo3.dll differs at 0x{0:x} - leaving it" +
-                    " unpatched (logo may render at low res)") -f $o `
+        Write-Host (("  ! AliceLogo3.dll differs at 0x{0:x} - leaving" +
+                     " it unpatched (logo may render at low res)") -f $o) `
             -ForegroundColor Yellow
     }
 }
 New-Item -Force -ItemType Directory (Split-Path $dllOut) | Out-Null
 [IO.File]::WriteAllBytes($dllOut, $dllBytes)
 Write-Host "  AliceLogo3.dll patched ($dllChanged sites, 800x600 -> 1600x1200)"
+} else {
+    Write-Host "  DLL\AliceLogo3.dll not present in this install - skipped"
+}
 
 # ---------- AIN patch ----------
+
+# From here on the game's own files get replaced; mark in-progress so an
+# interrupted run cannot be mistaken for a clean state on re-run.
+[IO.File]::WriteAllText($statePath, "in-progress; backup=$bakDir")
 
 Write-Host ""
 Write-Host "[2/5] Patching Rance7.ain (anchor resolution) ..."
@@ -349,11 +416,13 @@ function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$
     $tmpAld = "$aldPath.hdtmp"
     try {
         $res = [HdPatch]::RepackAld($aldPath, $tmpAld, [string[]]$dirs,
-                                    $disk, [Action[string]]$log, $extraRows)
+                                    $disk, [Action[string]]$log,
+                                    $extraRows, $repackProg)
     } catch {
         Remove-Item $tmpAld -ErrorAction SilentlyContinue
         Fail "repack of $arcName failed: $($_.Exception.Message) - original archive untouched"
     }
+    & $clearBar
     Move-Item -Force $tmpAld $aldPath
     Write-Host ("  {0}: {1} files ({2} overridden, {3} added)" -f
                 $arcName, $res[0], $res[1], $res[2])
@@ -405,7 +474,15 @@ foreach ($f in $mj.files) {
     if (-not (Test-Path $src)) {
         $src = Join-Path $dataDir ($f.src -replace '/', '\')
     }
-    if (-not (Test-Path $src)) { Fail "missing file payload: $($f.src)" }
+    if (-not (Test-Path $src)) {
+        # payload not generated AND the file is not part of this
+        # install (e.g. AliceLogo3.* on vanilla) - nothing to do
+        if (-not (Test-Path (Join-Path $GameDir $f.dst))) {
+            Write-Host "  $($f.dst) -> skipped (not part of this install)"
+            continue
+        }
+        Fail "missing file payload: $($f.src)"
+    }
     $dst = Join-Path $GameDir $f.dst
     Copy-Item -Force $src $dst
     Write-Host "  $($f.dst) -> replaced"
@@ -426,6 +503,7 @@ $ini = $ini -replace '(?m)^(ViewHeight)\s*=\s*\d+', "`$1`t= 1200"
 # generated payloads are baked into the archives now; drop the ~2-3 GB
 # intermediate directory
 Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
+[IO.File]::WriteAllText($statePath, "installed; backup=$bakDir")
 
 Write-Host ""
 Write-Host "=== HD patch applied ===" -ForegroundColor Green

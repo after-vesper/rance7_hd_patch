@@ -593,7 +593,8 @@ public static class HdPatch
     /// </summary>
     public static int[] RepackAld(string srcPath, string dstPath,
         string[] payloadDirs, int disk, Action<string> log,
-        Dictionary<int, int[]> extraLinkRows)
+        Dictionary<int, int[]> extraLinkRows,
+        Action<long, long> progress = null)
     {
         using (var fs = new FileStream(srcPath, FileMode.Open,
                    FileAccess.Read, FileShare.Read))
@@ -636,6 +637,17 @@ public static class HdPatch
                 files.Add(new KeyValuePair<string, AldEntry>(n, null));
 
             int count = files.Count;
+            // rough output-size estimate for the progress bar: payload
+            // files override entry data sizes; headers/padding add a
+            // little more
+            long totalBytes = 0;
+            foreach (var kv in files)
+            {
+                string tp;
+                totalBytes += payloads.TryGetValue(kv.Key, out tp)
+                    ? new FileInfo(tp).Length
+                    : (kv.Value != null ? kv.Value.Dsize : 0);
+            }
             int newPtrSecs = ((count + 2) * 3 + 255) / 256;
             int ltEntries = lt.Length / 3;
             int newMapSecs = (ltEntries * 3 + 255) / 256;
@@ -649,6 +661,8 @@ public static class HdPatch
                 var enc932 = Encoding.GetEncoding(932);
                 var copyBuf = new byte[1 << 20];
                 var padBuf = new byte[256];
+                long dataStart = pos;
+                long lastProg = 0;
 
                 w.Position = pos;
                 for (int i = 0; i < count; i++)
@@ -692,6 +706,12 @@ public static class HdPatch
                         pad -= n;
                     }
                     pos = Align256(pos + hs + dsize);
+                    if (progress != null &&
+                        (pos - lastProg > (32L << 20) || i == count - 1))
+                    {
+                        lastProg = pos;
+                        progress(pos - dataStart, totalBytes);
+                    }
                 }
                 offsets.Add((int)(pos >> 8));
 
