@@ -26,5 +26,11 @@ src/*_prologue_*.txt
 src/dlc1_op_script.txt
 
 # Installer payload - derived game assets and bundled binaries (copyrighted / GPL binary)
-installer/data/
 installer/bin/
+# Embedded python runtime + pip packages - provisioned by ci/provision_runtime.ps1
+installer/runtime/
+# Python caches
+__pycache__/
+*.pyc
+# Local release build output
+release/

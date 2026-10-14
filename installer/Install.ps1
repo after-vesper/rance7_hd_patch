@@ -26,6 +26,10 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 function Fail([string]$msg) {
     Write-Host ""
     Write-Host "ERROR: $msg" -ForegroundColor Red
+    # drop generation intermediates if the directory was created
+    if ($genDir -and (Test-Path $genDir)) {
+        Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
+    }
     if ($Elevated) { Read-Host "Press Enter to close" | Out-Null }
     exit 1
 }
@@ -153,7 +157,8 @@ Write-Host ""
 
 # ---------- free space check (repack needs orig + new archive) ----------
 
-$need = (Get-Item $gmPath).Length + (Get-Item $gaPath).Length + 3GB
+# orig archives + new archives + ~2.5 GB of generated intermediates
+$need = (Get-Item $gmPath).Length + (Get-Item $gaPath).Length + 5GB
 $drive = (Get-Item $GameDir).PSDrive
 $free = (Get-PSDrive $drive.Name).Free
 if ($free -lt $need) {
@@ -189,10 +194,107 @@ Add-Type -TypeDefinition (Get-Content $csPath -Raw) `
          -ReferencedAssemblies 'System.Web.Extensions'
 $log = { param($m) Write-Host "  $m" }
 
+# ---------- HD asset generation (embedded python + onnxruntime/DML) ----------
+#
+# The installer ships the inference model + recipe manifest instead of
+# 2.7 GB of derived images. Assets are upscaled from the user's own
+# (just backed up, still pristine) game archives. Runs BEFORE any file
+# is modified so a failure leaves the install untouched.
+
+$pyExe   = Join-Path $Root 'runtime\python.exe'
+$genDir  = Join-Path $GameDir "hd_gen_$stamp"
+$expect  = @{}
+if (-not (Test-Path $pyExe)) { Fail "missing installer file: $pyExe" }
+
+Write-Host ""
+Write-Host "[1/5] Generating HD assets from your game data ..."
+Write-Host "      (AI upscaling; ~20-30 min with a DirectML-capable GPU)"
+$pyArgs = @(
+    (Join-Path $Root 'gen\gen_ring.py'),
+    '--emit-qnt',
+    '--asset-set', $assetSet,
+    '--src-dir',   $bakDir,
+    '--out',       $genDir,
+    '--model',     (Join-Path $Root 'gen\model.onnx'),
+    '--manifest',  (Join-Path $Root 'gen\recipe_manifest.json')
+)
+& $pyExe $pyArgs
+if ($LASTEXITCODE -ne 0) {
+    Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
+    Fail "asset generation failed - nothing was modified (backup: $bakDir)"
+}
+# sanity: count generated payloads vs manifest (manual assets excluded)
+$recipes = Get-Content (Join-Path $Root 'gen\recipe_manifest.json') -Raw |
+           ConvertFrom-Json
+$want = 0
+foreach ($p in $recipes.PSObject.Properties) {
+    $parts = $p.Name -split '/'
+    if (($parts[1] -eq 'shared' -or $parts[1] -eq $assetSet) -and
+        $p.Value.recipe -ne 'manual') { $want++ }
+}
+$got = 0
+foreach ($s in @('shared', $assetSet)) {
+    foreach ($arch in @('GM', 'GA')) {
+        $d = Join-Path $genDir "$arch\$s"
+        if (Test-Path $d) {
+            $got += @(Get-ChildItem $d -File |
+                      Where-Object { $_.Extension -ne '.json' }).Count
+        }
+    }
+}
+if ($got -lt $want) {
+    Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
+    Fail "asset generation incomplete: $got/$want payloads - nothing was modified"
+}
+Write-Host "  generated $got payloads -> $genDir"
+
+# AliceLogo3.alk gets the same treatment: decode each entry from the
+# user's backed-up original, upscale 2x, repack the ALK container.
+$alkGen = Join-Path $genDir 'files\AliceLogo3.alk'
+& $pyExe (Join-Path $Root 'gen\gen_alk.py') `
+    --src (Join-Path $bakDir 'AliceLogo3.alk') --dst $alkGen
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $alkGen)) {
+    Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
+    Fail "AliceLogo3 generation failed - nothing was modified (backup: $bakDir)"
+}
+Write-Host "  AliceLogo3.alk regenerated (80 frames upscaled)"
+
+# DLL\AliceLogo3.dll: the shipped binary is just the user's original
+# plugin with two 800x600 -> 1600x1200 constants patched (8 bytes
+# total). Patch the backed-up copy instead of shipping the binary.
+$dllSrc = Join-Path $bakDir 'DLL\AliceLogo3.dll'
+$dllOut = Join-Path $genDir 'files\DLL\AliceLogo3.dll'
+$dllBytes = [IO.File]::ReadAllBytes($dllSrc)
+$dllPatch = @(
+    @(0x1312,  0x0320, 0x0640), @(0x131c,  0x0258, 0x04b0),
+    @(0x20d2c, 0x0320, 0x0640), @(0x20d30, 0x0258, 0x04b0)
+)
+$dllChanged = 0
+foreach ($p in $dllPatch) {
+    $o = $p[0]
+    $cur = $dllBytes[$o] -bor ($dllBytes[$o+1] -shl 8) -bor
+           ($dllBytes[$o+2] -shl 16) -bor ($dllBytes[$o+3] -shl 24)
+    if ($cur -eq $p[1]) {
+        $v = $p[2]
+        $dllBytes[$o]   = $v -band 0xff
+        $dllBytes[$o+1] = ($v -shr 8)  -band 0xff
+        $dllBytes[$o+2] = ($v -shr 16) -band 0xff
+        $dllBytes[$o+3] = ($v -shr 24) -band 0xff
+        $dllChanged++
+    } elseif ($cur -ne $p[2]) {
+        Write-Host ("  ! AliceLogo3.dll differs at 0x{0:x} - leaving it" +
+                    " unpatched (logo may render at low res)") -f $o `
+            -ForegroundColor Yellow
+    }
+}
+New-Item -Force -ItemType Directory (Split-Path $dllOut) | Out-Null
+[IO.File]::WriteAllBytes($dllOut, $dllBytes)
+Write-Host "  AliceLogo3.dll patched ($dllChanged sites, 800x600 -> 1600x1200)"
+
 # ---------- AIN patch ----------
 
 Write-Host ""
-Write-Host "[1/4] Patching Rance7.ain (anchor resolution) ..."
+Write-Host "[2/5] Patching Rance7.ain (anchor resolution) ..."
 $tmpAin = Join-Path $GameDir 'Rance7.ain.hdtmp'
 try {
     $r = [HdPatch]::ApplyAinPatch($ainPath, $tmpAin, $sites, $aliceExe,
@@ -229,9 +331,15 @@ $mj = Get-Content $manifest -Raw | ConvertFrom-Json
 
 function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$disk,
                         [Collections.Generic.Dictionary[int,int[]]]$extraRows = $null) {
+    # shipped payloads (manual exceptions) first; generated payloads last
+    # (generated wins on name collision, though there should be none)
     $dirs = @()
     foreach ($s in @('shared', $assetSet)) {
         $src = Join-Path $dataDir ("$dir\" + $s)
+        if (Test-Path $src) { $dirs += $src }
+    }
+    foreach ($s in @('shared', $assetSet)) {
+        $src = Join-Path $genDir ("$dir\" + $s)
         if (Test-Path $src) { $dirs += $src }
     }
     if ($dirs.Count -eq 0) { Fail "no payload set found for $arcName" }
@@ -255,7 +363,7 @@ function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$
 # HD set, so every archive's global link table must point the moved file
 # numbers at their new GA positions.
 Write-Host ""
-Write-Host "[2/4] Rance7GA.ald - applying HD assets ..."
+Write-Host "[3/5] Rance7GA.ald - applying HD assets ..."
 Repack-Archive $gaPath 'Rance7GA.ald' 'GA' $mj.archives.'Rance7GA.ald'.disk
 
 # Compute the moved-file link rows: names now in GA payloads that the
@@ -264,9 +372,15 @@ $gaOrig = [HdPatch]::ListAldNames((Join-Path $bakDir 'Rance7GA.ald'))
 $gaOrigSet = [Collections.Generic.HashSet[string]]::new([string[]]$gaOrig)
 $gaPayload = @()
 foreach ($s in @('shared', $assetSet)) {
-    $p = Join-Path $dataDir "GA\$s"
-    if (Test-Path $p) { $gaPayload += (Get-ChildItem $p).Name }
+    foreach ($base in @($dataDir, $genDir)) {
+        $p = Join-Path $base "GA\$s"
+        if (Test-Path $p) {
+            $gaPayload += (Get-ChildItem $p -File |
+                Where-Object { $_.Extension -ne '.json' }).Name
+        }
+    }
 }
+$gaPayload = $gaPayload | Select-Object -Unique
 $movedNames = $gaPayload | Where-Object { -not $gaOrigSet.Contains($_) } |
               Sort-Object
 $movedRows = New-Object 'Collections.Generic.Dictionary[int,int[]]'
@@ -277,7 +391,7 @@ for ($i = 0; $i -lt $movedNames.Count; $i++) {
 Write-Host ("  link rows redirected to GA: {0}" -f $movedRows.Count)
 
 Write-Host ""
-Write-Host "[3/4] Rance7GM.ald - applying HD assets (this copies ~1-2 GB) ..."
+Write-Host "[4/5] Rance7GM.ald - applying HD assets (this copies ~1-2 GB) ..."
 Repack-Archive $gmPath 'Rance7GM.ald' 'GM' $mj.archives.'Rance7GM.ald'.disk $movedRows
 
 # NOTE: Rance7BA.ald / Rance7WA.ald link tables must stay byte-identical.
@@ -286,7 +400,12 @@ Repack-Archive $gmPath 'Rance7GM.ald' 'GM' $mj.archives.'Rance7GM.ald'.disk $mov
 # breaks audio (verified: wrong hover SE + Music_Prepare failure).
 
 foreach ($f in $mj.files) {
-    $src = Join-Path $dataDir ($f.src -replace '/', '\')
+    # generated files (e.g. AliceLogo3.alk) win over any shipped copy
+    $src = Join-Path $genDir ($f.src -replace '/', '\')
+    if (-not (Test-Path $src)) {
+        $src = Join-Path $dataDir ($f.src -replace '/', '\')
+    }
+    if (-not (Test-Path $src)) { Fail "missing file payload: $($f.src)" }
     $dst = Join-Path $GameDir $f.dst
     Copy-Item -Force $src $dst
     Write-Host "  $($f.dst) -> replaced"
@@ -295,7 +414,7 @@ foreach ($f in $mj.files) {
 # ---------- System40.ini ----------
 
 Write-Host ""
-Write-Host "[4/4] System40.ini - 1600x1200 ..."
+Write-Host "[5/5] System40.ini - 1600x1200 ..."
 # read/write as raw bytes via cp932 so no encoding conversion can corrupt
 # unrelated settings
 $enc932 = [Text.Encoding]::GetEncoding(932)
@@ -303,6 +422,10 @@ $ini = $enc932.GetString([IO.File]::ReadAllBytes($iniPath))
 $ini = $ini -replace '(?m)^(ViewWidth)\s*=\s*\d+',  "`$1`t= 1600"
 $ini = $ini -replace '(?m)^(ViewHeight)\s*=\s*\d+', "`$1`t= 1200"
 [IO.File]::WriteAllBytes($iniPath, $enc932.GetBytes($ini))
+
+# generated payloads are baked into the archives now; drop the ~2-3 GB
+# intermediate directory
+Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host "=== HD patch applied ===" -ForegroundColor Green

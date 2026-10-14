@@ -1,0 +1,14 @@
+Bundled runtime components (under runtime/) and their licenses:
+
+- Python 3.10.11 embeddable package        - PSF License Agreement
+  https://docs.python.org/3/license.html   (LICENSE.txt is included in runtime/)
+- NumPy                                    - BSD 3-Clause
+  https://numpy.org/doc/stable/license.html
+- Pillow                                   - HPND (PIL Software License)
+  https://github.com/python-pillow/Pillow/blob/main/LICENSE
+- SciPy                                    - BSD 3-Clause
+  https://github.com/scipy/scipy/blob/main/LICENSE.txt
+- ONNX Runtime (onnxruntime-directml)      - MIT License
+  https://github.com/microsoft/onnxruntime/blob/main/LICENSE
+- DirectML                                 - Microsoft proprietary;
+  redistributable as part of the ONNX Runtime DirectML package

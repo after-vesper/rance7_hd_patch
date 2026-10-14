@@ -1,0 +1,10 @@
+Upscale model: 2x-AnimeSharpV4_Fast_RCAN_PU (fp16 ONNX)
+Source: https://openmodeldb.info/
+
+License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+         International (CC BY-NC-SA 4.0)
+         https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+This patch is distributed free of charge for non-commercial use.
+The model file (gen/model.onnx) may not be used for commercial purposes.
+If you redistribute this package, keep this notice and the attribution.

@@ -14,9 +14,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The asset payload (installer/data) is not in the repo, so CI only
-      # creates the release entry; attach the zip with tools/package.ps1.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # Embedded python runtime + alice.exe are not committed (size /
+      # GPL binary); download and assemble them here.
+      - name: Provision runtime and tools
+        shell: pwsh
+        run: ./ci/provision_runtime.ps1
+
+      - name: Build release package
+        run: python ci/build_release.py --zip
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          files: release/SengokuRance_HDPatch.zip
           generate_release_notes: true
