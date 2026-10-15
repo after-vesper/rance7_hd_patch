@@ -317,7 +317,7 @@ if ($got -lt $want) {
     Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
     Fail "アセット生成が途中で止まりました（$got/$want）- ゲームファイルは無傷です"
 }
-Write-Host "  $got 件のHD素材が揃いました"
+Write-Host "  マニフェスト照合OK（$got / $want 件）" -ForegroundColor DarkGray
 
 # AliceLogo3.* only exists when the JP patch installed the newer logo
 # plugin; vanilla Steam installs carry AliceLogo2.dll instead and have
@@ -333,7 +333,6 @@ if (Test-Path $alkSrc) {
         Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
         Fail "AliceLogo3.alk の生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）"
     }
-    Write-Host "  AliceLogo3.alk を80コマHD化"
 } else {
     Write-Host "  AliceLogo3.alk は存在しないためスキップ"
 }

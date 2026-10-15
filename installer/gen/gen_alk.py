@@ -89,7 +89,7 @@ def main():
                         exist_ok=True)
             with open(hit, 'rb') as f, open(a.dst, 'wb') as o:
                 o.write(f.read())
-            print('alk: キャッシュを再利用 -> %s' % a.dst)
+            print('  AliceLogo3.alk: キャッシュから再利用')
             return
 
     recipes = json.load(open(a.recipes))
@@ -102,7 +102,7 @@ def main():
     def show(i, final=False):
         frac = i / max(1, n_img)
         bar = ('#' * int(frac * 28)).ljust(28, '-')
-        line = 'AliceLogo3 [%s] %d/%d %5.1f%%' % (
+        line = '  AliceLogo3 [%s] %d/%d %5.1f%%' % (
             bar, i, n_img, frac * 100.0)
         if is_tty:
             pad = max(0, bar_len[0] - len(line))
@@ -134,8 +134,8 @@ def main():
     show(n_gen, final=True)
     os.makedirs(os.path.dirname(os.path.abspath(a.dst)), exist_ok=True)
     write_alk(entries, a.dst)
-    print('alk: 生成 %d 件 / 素通し %d 件 / 計 %d エントリ -> %s' %
-          (n_gen, n_pass, len(entries), a.dst))
+    print('  AliceLogo3.alk: 生成 %d コマ / 素通し %d / 計 %d エントリ' %
+          (n_gen, n_pass, len(entries)))
     if ck is not None:
         try:
             tmp = os.path.join(a.cache_dir, ck + '.tmp')
