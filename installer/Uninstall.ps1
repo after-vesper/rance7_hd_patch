@@ -14,11 +14,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-Write-Host ""
-Write-Host "  ============================================================" -ForegroundColor Cyan
-Write-Host "   戦国ランス HDパッチ アンインストーラー" -ForegroundColor Cyan
-Write-Host "  ============================================================" -ForegroundColor Cyan
-Write-Host ""
+# UI language: provisional guess from the OS culture, then confirmed by
+# the game build once the directory is known (only the zh build ships
+# Rance7GB.ald). L() picks the string for the active language.
+$script:LANG = if ((Get-Culture).TwoLetterISOLanguageName -eq 'zh') {
+    'zh' } else { 'ja' }
+function L([string]$ja, [string]$zh) {
+    if ($script:LANG -eq 'zh') { $zh } else { $ja }
+}
 
 # Same Steam auto-detection as Install.ps1.
 function Find-SteamGame([string]$appId) {
@@ -60,19 +63,33 @@ function Find-SteamGame([string]$appId) {
 if (-not $GameDir) {
     $GameDir = Find-SteamGame '3867170'
     if ($GameDir) {
-        Write-Host "  Steamインストール先を検出: $GameDir" -ForegroundColor Green
+        Write-Host (L "  Steamインストール先を検出: $GameDir" `
+                      "  已检测到 Steam 安装目录: $GameDir") -ForegroundColor Green
     } else {
-        $GameDir = Read-Host "  戦国ランスのインストールフォルダを入力してください"
+        $GameDir = Read-Host (L "  戦国ランスのインストールフォルダを入力してください" `
+                                "  请输入战国兰斯的安装文件夹")
     }
 }
 $GameDir = $GameDir.Trim().Trim('"').TrimEnd('\', '/')
+
+# the zh build is the only one shipping Rance7GB.ald
+$script:LANG = if (Test-Path (Join-Path $GameDir 'Rance7GB.ald')) {
+    'zh' } else { 'ja' }
+
+Write-Host ""
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host (L "   戦国ランス HDパッチ アンインストーラー" `
+              "   战国兰斯 HD 补丁卸载程序") -ForegroundColor Cyan
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host ""
 
 # Writing under Program Files requires elevation; relaunch elevated if needed.
 $probe = Join-Path $GameDir (".hd_write_test_" + [guid]::NewGuid().ToString('N'))
 try {
     [IO.File]::WriteAllText($probe, 'x'); Remove-Item $probe -Force
 } catch {
-    Write-Host "  書き込み権限が足りません。管理者権限でやり直します..." `
+    Write-Host (L "  書き込み権限が足りません。管理者権限でやり直します..." `
+                  "  写入权限不足，将以管理员权限重试...") `
         -ForegroundColor Yellow
     $args = @('-NoProfile', '-ExecutionPolicy', 'Bypass',
               '-File', "`"$PSCommandPath`"",
@@ -84,11 +101,13 @@ try {
 }
 
 if (-not (Test-Path (Join-Path $GameDir 'Rance7.ain'))) {
-    Write-Host "  エラー: Rance7.ain が見つかりません: '$GameDir'" -ForegroundColor Red
+    Write-Host (L "  エラー: Rance7.ain が見つかりません: '$GameDir'" `
+                  "  错误: 找不到 Rance7.ain: '$GameDir'") -ForegroundColor Red
     exit 1
 }
 if (Get-Process -Name Rance7 -ErrorAction SilentlyContinue) {
-    Write-Host "  エラー: Rance7.exe が起動中です。先にゲームを閉じてください。" `
+    Write-Host (L "  エラー: Rance7.exe が起動中です。先にゲームを閉じてください。" `
+                  "  错误: Rance7.exe 正在运行。请先关闭游戏。") `
         -ForegroundColor Red
     exit 1
 }
@@ -97,21 +116,24 @@ if (-not $BackupDir) {
     $backs = Get-ChildItem (Join-Path $GameDir 'backup') -Directory -Filter 'hd_*' -ErrorAction SilentlyContinue |
              Sort-Object Name -Descending
     if (-not $backs) {
-        Write-Host "  エラー: backup\hd_* のバックアップが見つかりません。" `
+        Write-Host (L "  エラー: backup\hd_* のバックアップが見つかりません。" `
+                      "  错误: 找不到 backup\hd_* 备份。") `
             -ForegroundColor Red
         exit 1
     }
-    Write-Host "  見つかったバックアップ:"
+    Write-Host (L "  見つかったバックアップ:" "  找到的备份:")
     for ($i = 0; $i -lt $backs.Count; $i++) {
         Write-Host ("    [{0}] {1}" -f $i, $backs[$i].Name)
     }
-    $sel = Read-Host "  復元する番号を入力（未入力 = 0 = 最新）"
+    $sel = Read-Host (L "  復元する番号を入力（未入力 = 0 = 最新）" `
+                        "  请输入要恢复的编号（留空 = 0 = 最新）")
     if ($sel -eq '') { $sel = '0' }
     $BackupDir = $backs[[int]$sel].FullName
 }
 
 if (-not (Test-Path (Join-Path $BackupDir 'Rance7.ain'))) {
-    Write-Host "  エラー: '$BackupDir' はHDパッチのバックアップではないようです。" `
+    Write-Host (L "  エラー: '$BackupDir' はHDパッチのバックアップではないようです。" `
+                  "  错误: '$BackupDir' 似乎不是 HD 补丁的备份。") `
         -ForegroundColor Red
     exit 1
 }
@@ -127,7 +149,7 @@ Get-ChildItem $BackupDir -Recurse -File | ForEach-Object {
         Out-Null
     Copy-Item -Force $_.FullName $dst
     $restored += ,@($_.FullName, $dst, $rel)
-    Write-Host "  復元: $rel"
+    Write-Host ((L "  復元: " "  恢复: ") + $rel)
 }
 
 # Delete the used backup only after every restored file verifies.
@@ -138,12 +160,15 @@ foreach ($r in $restored) {
     }
 }
 if ($bad) {
-    Write-Host "  警告: 復元の検証に失敗しました: $($bad -join ', ')" `
+    Write-Host (L "  警告: 復元の検証に失敗しました: $($bad -join ', ')" `
+                  "  警告: 恢复校验失败: $($bad -join ', ')") `
         -ForegroundColor Yellow
-    Write-Host "  念のためバックアップ '$BackupDir' は残してあります。" -ForegroundColor Yellow
+    Write-Host (L "  念のためバックアップ '$BackupDir' は残してあります。" `
+                  "  为安全起见已保留备份 '$BackupDir'。") -ForegroundColor Yellow
 } else {
     Remove-Item -Recurse -Force $BackupDir
-    Write-Host "  検証OK。使用済みバックアップを削除しました: '$BackupDir'" -ForegroundColor DarkGray
+    Write-Host (L "  検証OK。使用済みバックアップを削除しました: '$BackupDir'" `
+                  "  校验通过。已删除使用过的备份: '$BackupDir'") -ForegroundColor DarkGray
     # originals verified: clear the install-state marker so Install.ps1
     # can run again
     Remove-Item -Force (Join-Path $GameDir 'hd_patch.state') `
@@ -165,22 +190,27 @@ if (Test-Path $cacheDir) {
     $sz = [math]::Round(
         ((Get-ChildItem $cacheDir -Recurse -File -ErrorAction SilentlyContinue |
           Measure-Object Length -Sum).Sum / 1GB), 1)
-    $ans = Read-Host ("  HD素材キャッシュ 'hd_cache'（{0} GB）を削除しますか？ " +
-                      "残すと次回インストールでAI生成工程をスキップできます [y/N]" -f $sz)
+    $ans = Read-Host ((L ("  HD素材キャッシュ 'hd_cache'（{0} GB）を削除しますか？ " +
+                          "残すと次回インストールでAI生成工程をスキップできます [y/N]") `
+                         ("  是否删除 HD 素材缓存 'hd_cache'（{0} GB）？" +
+                          "保留后下次安装可跳过 AI 生成步骤 [y/N]")) -f $sz)
     if ($ans -match '^(y|yes)$') {
         Remove-Item -Recurse -Force $cacheDir -ErrorAction SilentlyContinue
         if (Test-Path $cacheDir) {
-            Write-Host "  警告: '$cacheDir' を完全に削除できませんでした。" `
+            Write-Host (L "  警告: '$cacheDir' を完全に削除できませんでした。" `
+                          "  警告: 无法完全删除 '$cacheDir'。") `
                 -ForegroundColor Yellow
         } else {
-            Write-Host "  hd_cache を削除しました" -ForegroundColor DarkGray
+            Write-Host (L "  hd_cache を削除しました" "  已删除 hd_cache") `
+                -ForegroundColor DarkGray
         }
     } else {
-        Write-Host "  hd_cache を残しました（次回インストールで生成を再利用します）" `
+        Write-Host (L "  hd_cache を残しました（次回インストールで生成を再利用します）" `
+                      "  已保留 hd_cache（下次安装时将复用生成结果）") `
             -ForegroundColor DarkGray
     }
 }
 Write-Host ""
 Write-Host "  ============================================================" -ForegroundColor Green
-Write-Host "   バックアップから復元しました。" -ForegroundColor Green
+Write-Host (L "   バックアップから復元しました。" "   已从备份恢复。") -ForegroundColor Green
 Write-Host "  ============================================================" -ForegroundColor Green

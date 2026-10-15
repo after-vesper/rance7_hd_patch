@@ -25,21 +25,26 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-Write-Host ""
-Write-Host "  ============================================================" -ForegroundColor Cyan
-Write-Host "   戦国ランス HDパッチ インストーラー" -ForegroundColor Cyan
-Write-Host "   （アリスソフト非公式のファン制作パッチです）" -ForegroundColor Cyan
-Write-Host "  ============================================================" -ForegroundColor Cyan
-Write-Host ""
+# UI language: provisional guess from the OS culture, then confirmed by
+# the game build once the directory is known (only the zh build ships
+# Rance7GB.ald). L() picks the string for the active language.
+$script:LANG = if ((Get-Culture).TwoLetterISOLanguageName -eq 'zh') {
+    'zh' } else { 'ja' }
+function L([string]$ja, [string]$zh) {
+    if ($script:LANG -eq 'zh') { $zh } else { $ja }
+}
 
 function Fail([string]$msg) {
     Write-Host ""
-    Write-Host "  エラー: $msg" -ForegroundColor Red
+    Write-Host (L "  エラー: $msg" "  错误: $msg") -ForegroundColor Red
     # drop generation intermediates if the directory was created
     if ($genDir -and (Test-Path $genDir)) {
         Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
     }
-    if ($Elevated) { Read-Host "Enterキーを押して閉じてください" | Out-Null }
+    if ($Elevated) {
+        Read-Host (L "Enterキーを押して閉じてください" "按 Enter 键关闭") |
+            Out-Null
+    }
     exit 1
 }
 
@@ -95,7 +100,10 @@ $dataDir  = Join-Path $Root 'data'
 $manifest = Join-Path $dataDir 'manifest.json'
 $sites    = Join-Path $dataDir 'hd_sites.json'
 foreach ($req in @($aliceExe, $csPath, $manifest, $sites)) {
-    if (-not (Test-Path $req)) { Fail "インストーラーのファイルが不足しています: $req" }
+    if (-not (Test-Path $req)) {
+        Fail (L "インストーラーのファイルが不足しています: $req" `
+                "安装程序文件缺失: $req")
+    }
 }
 
 # ---------- locate the game ----------
@@ -103,21 +111,39 @@ foreach ($req in @($aliceExe, $csPath, $manifest, $sites)) {
 if (-not $GameDir) {
     $GameDir = Find-SteamGame '3867170'
     if ($GameDir) {
-        Write-Host "  Steamインストール先を検出: $GameDir" -ForegroundColor Green
+        Write-Host (L "  Steamインストール先を検出: $GameDir" `
+                      "  已检测到 Steam 安装目录: $GameDir") -ForegroundColor Green
         Write-Host ""
     } else {
-        Write-Host "  Steamからの自動検出に失敗しました。" -ForegroundColor Yellow
-        $GameDir = Read-Host "  戦国ランスのインストールフォルダを入力してください（Rance7.exe がある場所）"
+        Write-Host (L "  Steamからの自動検出に失敗しました。" `
+                      "  Steam 自动检测失败。") -ForegroundColor Yellow
+        $GameDir = Read-Host (L "  戦国ランスのインストールフォルダを入力してください（Rance7.exe がある場所）" `
+                                "  请输入战国兰斯的安装文件夹（Rance7.exe 所在位置）")
     }
 }
 $GameDir = $GameDir.Trim().Trim('"').TrimEnd('\', '/')
+
+# the zh build is the only one shipping Rance7GB.ald; that decides both
+# the archive layout and the UI language for the rest of the run
+$script:LANG = if (Test-Path (Join-Path $GameDir 'Rance7GB.ald')) {
+    'zh' } else { 'ja' }
+
+Write-Host ""
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host (L "   戦国ランス HDパッチ インストーラー" `
+              "   战国兰斯 HD 补丁安装程序") -ForegroundColor Cyan
+Write-Host (L "   （アリスソフト非公式のファン制作パッチです）" `
+              "   （AliceSoft 非官方同人补丁）") -ForegroundColor Cyan
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host ""
 
 # Writing under Program Files requires elevation; relaunch elevated if needed.
 $probe = Join-Path $GameDir (".hd_write_test_" + [guid]::NewGuid().ToString('N'))
 try {
     [IO.File]::WriteAllText($probe, 'x'); Remove-Item $probe -Force
 } catch {
-    Write-Host "  書き込み権限が足りません。管理者権限でやり直します..." `
+    Write-Host (L "  書き込み権限が足りません。管理者権限でやり直します..." `
+                  "  写入权限不足，将以管理员权限重试...") `
         -ForegroundColor Yellow
     $args = @('-NoProfile', '-ExecutionPolicy', 'Bypass',
               '-File', "`"$PSCommandPath`"",
@@ -127,11 +153,18 @@ try {
 }
 $ainPath = Join-Path $GameDir 'Rance7.ain'
 $iniPath = Join-Path $GameDir 'System40.ini'
-if (-not (Test-Path $ainPath)) { Fail "Rance7.ain が見つかりません: '$GameDir'" }
-if (-not (Test-Path $iniPath)) { Fail "System40.ini が見つかりません: '$GameDir'" }
+if (-not (Test-Path $ainPath)) {
+    Fail (L "Rance7.ain が見つかりません: '$GameDir'" `
+            "找不到 Rance7.ain: '$GameDir'")
+}
+if (-not (Test-Path $iniPath)) {
+    Fail (L "System40.ini が見つかりません: '$GameDir'" `
+            "找不到 System40.ini: '$GameDir'")
+}
 
 if (Get-Process -Name Rance7 -ErrorAction SilentlyContinue) {
-    Fail "Rance7.exe が起動中です。先にゲームを閉じてください。"
+    Fail (L "Rance7.exe が起動中です。先にゲームを閉じてください。" `
+            "Rance7.exe 正在运行。请先关闭游戏。")
 }
 
 # ---------- interrupted / already-installed guard ----------
@@ -145,8 +178,10 @@ $statePath = Join-Path $GameDir 'hd_patch.state'
 if (Test-Path $statePath) {
     $prev = (Get-Content $statePath -Raw -ErrorAction SilentlyContinue)
     if ($prev -match 'in-progress') {
-        Fail ("前回のインストールがファイル置き換えの途中で中断しています。`n" +
-              "先に Uninstall.cmd でバックアップから復旧してから、やり直してください。")
+        Fail (L ("前回のインストールがファイル置き換えの途中で中断しています。`n" +
+                 "先に Uninstall.cmd でバックアップから復旧してから、やり直してください。") `
+                ("上次安装在文件替换过程中被中断。`n" +
+                 "请先运行 Uninstall.cmd 从备份恢复，然后再重试。"))
     }
     # a Steam reinstall leaves hd_patch.state behind while restoring
     # pristine files - detect it via System40.ini before refusing.
@@ -156,14 +191,18 @@ if (Test-Path $statePath) {
     $iniNow = [Text.Encoding]::GetEncoding(932).GetString(
         [IO.File]::ReadAllBytes($iniPath))
     if ($iniNow -notmatch '(?m)^ViewWidth\s*=\s*1600') {
-        Write-Host "  状態ファイルは残っていますが、ゲームファイルは素の状態です" `
+        Write-Host (L "  状態ファイルは残っていますが、ゲームファイルは素の状態です" `
+                      "  状态文件仍然存在，但游戏文件为原始状态") `
             -ForegroundColor Yellow
-        Write-Host "  （Steam再インストール等で上書きされたようです）。続行します。" `
+        Write-Host (L "  （Steam再インストール等で上書きされたようです）。続行します。" `
+                      "  （可能被 Steam 重装覆盖了）。继续执行。") `
             -ForegroundColor Yellow
         Remove-Item -Force $statePath -ErrorAction SilentlyContinue
     } else {
-        Fail ("このゲームには既にHDパッチが適用済みです。`n" +
-              "元に戻したい場合は先に Uninstall.cmd を実行してください。")
+        Fail (L ("このゲームには既にHDパッチが適用済みです。`n" +
+                 "元に戻したい場合は先に Uninstall.cmd を実行してください。") `
+                ("此游戏已应用 HD 补丁。`n" +
+                 "如需还原请先运行 Uninstall.cmd。"))
     }
 }
 
@@ -198,10 +237,16 @@ $gaPath = Join-Path $GameDir 'Rance7GA.ald'
 $gbPath = Join-Path $GameDir 'Rance7GB.ald'
 $isZh = Test-Path $gbPath
 if ($isZh) {
-    if (-not (Test-Path $gaPath)) { Fail "Rance7GA.ald が見つかりません" }
+    if (-not (Test-Path $gaPath)) {
+        Fail (L "Rance7GA.ald が見つかりません" "找不到 Rance7GA.ald")
+    }
 } else {
-    if (-not (Test-Path $gmPath)) { Fail "Rance7GM.ald が見つかりません" }
-    if (-not (Test-Path $gaPath)) { Fail "Rance7GA.ald が見つかりません" }
+    if (-not (Test-Path $gmPath)) {
+        Fail (L "Rance7GM.ald が見つかりません" "找不到 Rance7GM.ald")
+    }
+    if (-not (Test-Path $gaPath)) {
+        Fail (L "Rance7GA.ald が見つかりません" "找不到 Rance7GA.ald")
+    }
 }
 
 # The JP patch rewrites the GM archive (R18 CGs); vanilla payloads are
@@ -216,9 +261,9 @@ if ($isZh) {
 }
 
 Write-Host ""
-Write-Host "  対象         : $GameDir"
-Write-Host "  AINバリアント: $variant"
-Write-Host "  素材セット   : $assetSet"
+Write-Host ((L "  対象         : " "  目标         : ") + $GameDir)
+Write-Host ((L "  AINバリアント: " "  AIN版本      : ") + $variant)
+Write-Host ((L "  素材セット   : " "  素材集       : ") + $assetSet)
 Write-Host ""
 
 # ---------- free space check (repack needs orig + new archive) ----------
@@ -237,7 +282,8 @@ foreach ($mv in (Get-ChildItem (Join-Path $GameDir 'movie') -Filter '*.alm' -Fil
 $drive = (Get-Item $GameDir).PSDrive
 $free = (Get-PSDrive $drive.Name).Free
 if ($free -lt $need) {
-    Fail ("ドライブ {0}: の空き容量が足りません - 必要 ~{1:N1} GB / 空き {2:N1} GB" -f
+    Fail ((L "ドライブ {0}: の空き容量が足りません - 必要 ~{1:N1} GB / 空き {2:N1} GB" `
+             "驱动器 {0}: 可用空间不足 - 需要 ~{1:N1} GB / 可用 {2:N1} GB") -f
           $drive.Name, ($need / 1GB), ($free / 1GB))
 }
 
@@ -268,7 +314,7 @@ foreach ($f in $looseFiles) {
     New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
     Copy-Item $f.FullName $dst
 }
-Write-Host "  バックアップ: $bakDir"
+Write-Host ((L "  バックアップ: " "  备份: ") + $bakDir)
 
 # ---------- compile patch engine ----------
 
@@ -307,11 +353,16 @@ $pyExe   = Join-Path $Root 'runtime\python.exe'
 $genDir  = Join-Path $GameDir "hd_gen_$stamp"
 $cacheDir = Join-Path $GameDir 'hd_cache'
 $expect  = @{}
-if (-not (Test-Path $pyExe)) { Fail "インストーラーのファイルが不足しています: $pyExe" }
+if (-not (Test-Path $pyExe)) {
+    Fail (L "インストーラーのファイルが不足しています: $pyExe" `
+            "安装程序文件缺失: $pyExe")
+}
 
 Write-Host ""
-Write-Host "[1/5] HD素材の生成 - ゲーム内画像をAIで2倍化 ..." -ForegroundColor Cyan
-Write-Host "      DirectML対応GPUなら数分。再インストール時は生成済み素材を再利用します"
+Write-Host (L "[1/5] HD素材の生成 - ゲーム内画像をAIで2倍化 ..." `
+              "[1/5] 生成 HD 素材 - 用 AI 将游戏图像放大两倍 ...") -ForegroundColor Cyan
+Write-Host (L "      DirectML対応GPUなら数分。再インストール時は生成済み素材を再利用します" `
+              "      使用 DirectML 兼容 GPU 约需几分钟。重装时会复用已生成素材")
 $pyArgs = @(
     (Join-Path $Root 'gen\gen_ring.py'),
     '--emit-qnt',
@@ -325,7 +376,8 @@ $pyArgs = @(
 & $pyExe $pyArgs
 if ($LASTEXITCODE -ne 0) {
     Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
-    Fail "アセット生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）"
+    Fail (L "アセット生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）" `
+            "素材生成失败 - 游戏文件未受影响（备份: $bakDir）")
 }
 # sanity: count generated payloads vs expectation (manual assets excluded)
 $recipes = Get-Content (Join-Path $Root 'gen\recipe_manifest.json') -Raw |
@@ -383,9 +435,11 @@ if ($isZh) {
 }
 if ($got -lt $want) {
     Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
-    Fail "アセット生成が途中で止まりました（$got/$want）- ゲームファイルは無傷です"
+    Fail (L "アセット生成が途中で止まりました（$got/$want）- ゲームファイルは無傷です" `
+            "素材生成中途停止（$got/$want）- 游戏文件未受影响")
 }
-Write-Host "  マニフェスト照合OK（$got / $want 件）" -ForegroundColor DarkGray
+Write-Host (L "  マニフェスト照合OK（$got / $want 件）" `
+              "  清单校验通过（$got / $want 项）") -ForegroundColor DarkGray
 
 # AliceLogo*.alk only exists on builds with the logo plugin (jp:
 # AliceLogo3.alk, zh: AliceLogo2.alk); vanilla Steam installs carry
@@ -398,7 +452,8 @@ foreach ($alkSrc in (Get-ChildItem $bakDir -Filter 'AliceLogo*.alk' -File -Error
         --src $alkSrc.FullName --dst $alkGen --cache-dir $cacheDir
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $alkGen)) {
         Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
-        Fail "$($alkSrc.Name) の生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）"
+        Fail (L "$($alkSrc.Name) の生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）" `
+                "$($alkSrc.Name) 生成失败 - 游戏文件未受影响（备份: $bakDir）")
     }
 }
 
@@ -417,7 +472,8 @@ foreach ($dllSrc in (Get-ChildItem (Join-Path $bakDir 'DLL') -Filter 'AliceLogo*
     $dllOut = Join-Path $genDir ('files\DLL\' + $dllSrc.Name)
     $patch = $dllOffsets[$dllSrc.Name]
     if (-not $patch) {
-        Write-Host "  $($dllSrc.Name) のパッチ位置が不明のためスキップ" `
+        Write-Host (L "  $($dllSrc.Name) のパッチ位置が不明のためスキップ" `
+                      "  $($dllSrc.Name) 补丁位置未知，跳过") `
             -ForegroundColor Yellow
         continue
     }
@@ -434,14 +490,17 @@ foreach ($dllSrc in (Get-ChildItem (Join-Path $bakDir 'DLL') -Filter 'AliceLogo*
             $dllBytes[$o+3] = ($v -shr 24) -band 0xff
             $dllChanged++
         } elseif ($cur -ne $p[2]) {
-            Write-Host (("  ! $($dllSrc.Name) が想定と異なります（0x{0:x}）- " +
-                         "その箇所はパッチしません（ロゴは低解像度のままの可能性）") -f $o) `
+            Write-Host ((L ("  ! $($dllSrc.Name) が想定と異なります（0x{0:x}）- " +
+                            "その箇所はパッチしません（ロゴは低解像度のままの可能性）") `
+                           ("  ! $($dllSrc.Name) 与预期不符（0x{0:x}）- " +
+                            "该处不修补（Logo 可能保持低分辨率）")) -f $o) `
                 -ForegroundColor Yellow
         }
     }
     New-Item -Force -ItemType Directory (Split-Path $dllOut) | Out-Null
     [IO.File]::WriteAllBytes($dllOut, $dllBytes)
-    Write-Host "  $($dllSrc.Name) に $dllChanged 箇所パッチ（800x600 -> 1600x1200）"
+    Write-Host (L "  $($dllSrc.Name) に $dllChanged 箇所パッチ（800x600 -> 1600x1200）" `
+                  "  $($dllSrc.Name) 已修补 $dllChanged 处（800x600 -> 1600x1200）")
 }
 
 # movie/*.alm: regenerate the OP/ED at 1280x960 from the backed-up
@@ -454,20 +513,23 @@ $movOutDir = Join-Path $genDir 'files\movie'
 if ((Test-Path $movSrcDir) -and
     @(Get-ChildItem $movSrcDir -Filter '*.alm' -ErrorAction SilentlyContinue).Count -gt 0) {
     if (Test-Path $ffmpegExe) {
-        Write-Host "  OP/EDムービーをHD化しています（数分かかります） ..."
+        Write-Host (L "  OP/EDムービーをHD化しています（数分かかります） ..." `
+                      "  正在高清化 OP/ED 影片（需要几分钟） ...")
         & $pyExe (Join-Path $Root 'gen\gen_movie.py') `
             --src-dir $bakDir --dst-dir $movOutDir `
             --ffmpeg $ffmpegExe --cache-dir $cacheDir
         if ($LASTEXITCODE -ne 0) {
-            Write-Host ("  ! ムービー生成に失敗しました - 元のムービーのまま続行します") `
+            Write-Host (L "  ! ムービー生成に失敗しました - 元のムービーのまま続行します" `
+                          "  ! 影片生成失败 - 继续使用原影片") `
                 -ForegroundColor Yellow
             Remove-Item -Recurse -Force $movOutDir -ErrorAction SilentlyContinue
         }
     } else {
-        Write-Host "  bin\ffmpeg.exe が無いためムービーHD化をスキップ" -ForegroundColor Yellow
+        Write-Host (L "  bin\ffmpeg.exe が無いためムービーHD化をスキップ" `
+                      "  缺少 bin\ffmpeg.exe，跳过影片高清化") -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  movie/*.alm は存在しないためスキップ"
+    Write-Host (L "  movie/*.alm は存在しないためスキップ" "  没有 movie/*.alm，跳过")
 }
 
 # ---------- AIN patch ----------
@@ -477,23 +539,28 @@ if ((Test-Path $movSrcDir) -and
 [IO.File]::WriteAllText($statePath, "in-progress; backup=$bakDir")
 
 Write-Host ""
-Write-Host "[2/5] Rance7.ain - パッチを適用します ..." -ForegroundColor Cyan
+Write-Host (L "[2/5] Rance7.ain - パッチを適用します ..." `
+              "[2/5] Rance7.ain - 应用补丁 ...") -ForegroundColor Cyan
 $tmpAin = Join-Path $GameDir 'Rance7.ain.hdtmp'
 try {
     $r = [HdPatch]::ApplyAinPatch($ainPath, $tmpAin, $sites, $aliceExe,
                                   [Action[string]]$log)
 } catch {
     Remove-Item $tmpAin -ErrorAction SilentlyContinue
-    Fail "AINパッチに失敗しました: $($_.Exception.Message)`n元のファイルは無傷です（バックアップ: $bakDir）"
+    Fail (L ("AINパッチに失敗しました: $($_.Exception.Message)`n元のファイルは無傷です（バックアップ: $bakDir）") `
+            ("AIN 补丁失败: $($_.Exception.Message)`n原文件未受影响（备份: $bakDir）"))
 }
-Write-Host ("  パッチ箇所: {0} 件を解決（適用済 {1} / 緩和 {2} / 曖昧 {3} / 関数欠落 {4}）" -f
+Write-Host ((L "  パッチ箇所: {0} 件を解決（適用済 {1} / 緩和 {2} / 曖昧 {3} / 関数欠落 {4}）" `
+               "  补丁位置: 已解决 {0} 处（已应用 {1} / 宽松 {2} / 歧义 {3} / 函数缺失 {4}）") -f
             $r.Ok, $r.AlreadyPatched, $r.Relaxed, $r.Ambiguous, $r.MissingFunc)
 if ($r.Writes -eq 0 -and $r.AlreadyPatched -eq 0) {
     Remove-Item $tmpAin -ErrorAction SilentlyContinue
-    Fail "パッチ対象が見つかりませんでした - このAINには適用できません。`n詳細:`n  $($r.Problems -join "`n  ")"
+    Fail (L ("パッチ対象が見つかりませんでした - このAINには適用できません。`n詳細:`n  $($r.Problems -join "`n  ")") `
+            ("未找到补丁目标 - 无法应用于此 AIN。`n详情:`n  $($r.Problems -join "`n  ")"))
 }
 if ($r.Ambiguous -gt 0 -or $r.MissingFunc -gt 0) {
-    Write-Host "  注意: 一部の箇所に軽微な問題があります（処理は続行）:" -ForegroundColor Yellow
+    Write-Host (L "  注意: 一部の箇所に軽微な問題があります（処理は続行）:" `
+                  "  注意: 部分位置存在轻微问题（继续处理）:") -ForegroundColor Yellow
     $r.Problems | Select-Object -First 8 | ForEach-Object { Write-Host "    ! $_" }
 }
 # sanity check the produced AIN parses
@@ -503,10 +570,11 @@ $ok = ($LASTEXITCODE -eq 0)
 Remove-Item $verifyJam -ErrorAction SilentlyContinue
 if (-not $ok) {
     Remove-Item $tmpAin -ErrorAction SilentlyContinue
-    Fail "パッチ後のAINが検証を通りませんでした - 中止します（元のファイルは無傷です）"
+    Fail (L "パッチ後のAINが検証を通りませんでした - 中止します（元のファイルは無傷です）" `
+            "补丁后的 AIN 未通过验证 - 中止（原文件未受影响）")
 }
 Move-Item -Force $tmpAin $ainPath
-Write-Host "  Rance7.ain -> HD化完了"
+Write-Host (L "  Rance7.ain -> HD化完了" "  Rance7.ain -> HD 化完成")
 
 # ---------- asset payload ----------
 
@@ -530,8 +598,10 @@ function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$
         $src = Join-Path $genDir ("$dir\" + $s)
         if (Test-Path $src) { $dirs += $src }
     }
-    if ($dirs.Count -eq 0) { Fail "$arcName 用の素材が見つかりません" }
-    Write-Host ("  {0}: 格納する素材 {1} ファイル" -f $arcName,
+    if ($dirs.Count -eq 0) {
+        Fail (L "$arcName 用の素材が見つかりません" "找不到用于 $arcName 的素材")
+    }
+    Write-Host ((L "  {0}: 格納する素材 {1} ファイル" "  {0}: 打包素材 {1} 个文件") -f $arcName,
                 (($dirs | ForEach-Object { (Get-ChildItem $_).Count }) |
                  Measure-Object -Sum).Sum)
     $tmpAld = "$aldPath.hdtmp"
@@ -541,11 +611,12 @@ function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$
                                     $extraRows, $repackProg, $noAppend)
     } catch {
         Remove-Item $tmpAld -ErrorAction SilentlyContinue
-        Fail "$arcName の再梱包に失敗: $($_.Exception.Message) - 元のアーカイブは無傷です"
+        Fail (L "$arcName の再梱包に失敗: $($_.Exception.Message) - 元のアーカイブは無傷です" `
+                "$arcName 重新打包失败: $($_.Exception.Message) - 原存档未受影响")
     }
     & $clearBar
     Move-Item -Force $tmpAld $aldPath
-    Write-Host ("  {0}: 計{1}件（上書き {2} / 追加 {3}）" -f
+    Write-Host ((L "  {0}: 計{1}件（上書き {2} / 追加 {3}）" "  {0}: 共{1}项（覆盖 {2} / 新增 {3}）") -f
                 $arcName, $res[0], $res[1], $res[2])
 }
 
@@ -581,7 +652,8 @@ if ($isZh) {
     foreach ($f in ($gaPl.Keys)) { $gaProj += $gaPl[$f] }
     $gaProj += 176L * ($gaOrigSz.Count + 64)
     Write-Host ""
-    Write-Host ("  アーカイブ容量確認: Rance7GA.ald の完成予想は {0:N0} MB" -f ($gaProj / 1MB))
+    Write-Host ((L "  アーカイブ容量確認: Rance7GA.ald の完成予想は {0:N0} MB" `
+                   "  存档容量确认: Rance7GA.ald 预计大小 {0:N0} MB") -f ($gaProj / 1MB))
 
     $zhRows = $null
     if ($gaProj -gt $AldTarget) {
@@ -605,10 +677,14 @@ if ($isZh) {
             $gaProj -= ($gaPl[$nm] - $orig)
             $movedBytes += $gaPl[$nm]
         }
-        Write-Host ("  サイズ調整: 大きい素材 {0} 件をGAからGBへ移動（{1:N0} MB）→ GAは約{2:N0} MBに" -f $moved.Count, ($movedBytes / 1MB), ($gaProj / 1MB))
+        Write-Host ((L "  サイズ調整: 大きい素材 {0} 件をGAからGBへ移動（{1:N0} MB）→ GAは約{2:N0} MBに" `
+                       "  容量调整: 将 {0} 个大型素材从GA移至GB（{1:N0} MB）→ GA约{2:N0} MB") -f
+                    $moved.Count, ($movedBytes / 1MB), ($gaProj / 1MB))
         if ($gaProj -gt $AldTarget) {
-            Write-Host ("  ! 警告: それでもGAが安全圏を超える見込みです - " +
-                        "2GB以降の素材が表示されない可能性があります") `
+            Write-Host (L ("  ! 警告: それでもGAが安全圏を超える見込みです - " +
+                           "2GB以降の素材が表示されない可能性があります") `
+                          ("  ! 警告: GA 仍预计超过安全范围 - " +
+                           "2GB 之后的素材可能无法显示")) `
                 -ForegroundColor Yellow
         }
         if ($moved.Count -gt 0) {
@@ -623,16 +699,18 @@ if ($isZh) {
                 # parenthesize: @(a, x + i) would parse as @(a, x) + i
                 $zhRows[$digits - 1] = [int[]]@(1, ($gbOrigNm.Count + $i))
             }
-            Write-Host ("  GBへのリンク振替: {0} 行" -f $zhRows.Count)
+            Write-Host ((L "  GBへのリンク振替: {0} 行" "  向GB的链接转移: {0} 行") -f $zhRows.Count)
         }
     }
 
     # GB first: its appended entries land at the indexes computed above
     Write-Host ""
-    Write-Host "[3/5] Rance7GB.ald - HD素材を格納します ..." -ForegroundColor Cyan
+    Write-Host (L "[3/5] Rance7GB.ald - HD素材を格納します ..." `
+                  "[3/5] Rance7GB.ald - 写入 HD 素材 ...") -ForegroundColor Cyan
     Repack-Archive $gbPath 'Rance7GB.ald' 'GB' $mj.archives.'Rance7GB.ald'.disk $null $false $true
     Write-Host ""
-    Write-Host "[4/5] Rance7GA.ald - HD素材を格納します（約1〜2GB） ..." -ForegroundColor Cyan
+    Write-Host (L "[4/5] Rance7GA.ald - HD素材を格納します（約1〜2GB） ..." `
+                  "[4/5] Rance7GA.ald - 写入 HD 素材（约1〜2GB） ...") -ForegroundColor Cyan
     Repack-Archive $gaPath 'Rance7GA.ald' 'GA' $mj.archives.'Rance7GA.ald'.disk $zhRows $true $true
 } else {
 
@@ -669,7 +747,8 @@ foreach ($kv in $gmOrigSz.GetEnumerator()) {
 foreach ($f in ($gmPl.Keys)) { $gmProj += $gmPl[$f] }
 $gmProj += 176L * ($gmOrigSz.Count + 64)
 Write-Host ""
-Write-Host ("  アーカイブ容量確認: Rance7GM.ald の完成予想は {0:N0} MB" -f ($gmProj / 1MB))
+Write-Host ((L "  アーカイブ容量確認: Rance7GM.ald の完成予想は {0:N0} MB" `
+               "  存档容量确认: Rance7GM.ald 预计大小 {0:N0} MB") -f ($gmProj / 1MB))
 
 if ($gmProj -gt $AldTarget) {
     # biggest payloads first; move every staged copy of the name
@@ -712,10 +791,14 @@ if ($gmProj -gt $AldTarget) {
         $moved++
         $movedBytes += $byName[$nm].Size
     }
-    Write-Host ("  サイズ調整: 大きい素材 {0} 件をGMからGAへ移動（{1:N0} MB）→ GMは約{2:N0} MBに" -f $moved, ($movedBytes / 1MB), ($gmProj / 1MB))
+    Write-Host ((L "  サイズ調整: 大きい素材 {0} 件をGMからGAへ移動（{1:N0} MB）→ GMは約{2:N0} MBに" `
+                   "  容量调整: 将 {0} 个大型素材从GM移至GA（{1:N0} MB）→ GM约{2:N0} MB") -f
+                $moved, ($movedBytes / 1MB), ($gmProj / 1MB))
     if ($gmProj -gt $AldTarget) {
-        Write-Host ("  ! 警告: それでもGMが安全圏を超える見込みです - " +
-                    "2GB以降の素材が表示されない可能性があります") `
+        Write-Host (L ("  ! 警告: それでもGMが安全圏を超える見込みです - " +
+                       "2GB以降の素材が表示されない可能性があります") `
+                      ("  ! 警告: GM 仍预计超过安全范围 - " +
+                       "2GB 之后的素材可能无法显示")) `
             -ForegroundColor Yellow
     }
 }
@@ -724,7 +807,8 @@ if ($gmProj -gt $AldTarget) {
 # HD set, so every archive's global link table must point the moved file
 # numbers at their new GA positions.
 Write-Host ""
-Write-Host "[3/5] Rance7GA.ald - HD素材を格納します ..." -ForegroundColor Cyan
+Write-Host (L "[3/5] Rance7GA.ald - HD素材を格納します ..." `
+              "[3/5] Rance7GA.ald - 写入 HD 素材 ...") -ForegroundColor Cyan
 Repack-Archive $gaPath 'Rance7GA.ald' 'GA' $mj.archives.'Rance7GA.ald'.disk
 
 # Compute the moved-file link rows: names now in GA payloads that the
@@ -749,10 +833,11 @@ for ($i = 0; $i -lt $movedNames.Count; $i++) {
     $digits = [int]([regex]::Match([IO.Path]::GetFileNameWithoutExtension($movedNames[$i]), '\d+').Value)
     $movedRows[$digits - 1] = [int[]]@(0, ($gaOrig.Count + $i))
 }
-Write-Host ("  GAへのリンク振替: {0} 行" -f $movedRows.Count)
+Write-Host ((L "  GAへのリンク振替: {0} 行" "  向GA的链接转移: {0} 行") -f $movedRows.Count)
 
 Write-Host ""
-Write-Host "[4/5] Rance7GM.ald - HD素材を格納します（約1〜2GB） ..." -ForegroundColor Cyan
+Write-Host (L "[4/5] Rance7GM.ald - HD素材を格納します（約1〜2GB） ..." `
+              "[4/5] Rance7GM.ald - 写入 HD 素材（约1〜2GB） ...") -ForegroundColor Cyan
 Repack-Archive $gmPath 'Rance7GM.ald' 'GM' $mj.archives.'Rance7GM.ald'.disk $movedRows
 
 # hard ceiling check: the engine's signed 32-bit seek cannot reach
@@ -761,9 +846,12 @@ Repack-Archive $gmPath 'Rance7GM.ald' 'GM' $mj.archives.'Rance7GM.ald'.disk $mov
 foreach ($ald in @($gaPath, $gmPath)) {
     $sz = (Get-Item $ald).Length
     if ($sz -ge $AldSeekLimit) {
-        Write-Host (("  ! 警告: {0} が {1:N0} バイト - エンジンの2GB読み取り" +
-                    "上限を超えています。末尾の素材が表示されません。" +
-                    " Uninstall.cmd で戻してからご報告ください。") -f
+        Write-Host ((L ("  ! 警告: {0} が {1:N0} バイト - エンジンの2GB読み取り" +
+                        "上限を超えています。末尾の素材が表示されません。" +
+                        " Uninstall.cmd で戻してからご報告ください。") `
+                       ("  ! 警告: {0} 已达 {1:N0} 字节 - 超过引擎的2GB读取" +
+                        "上限，末尾素材将无法显示。" +
+                        " 请用 Uninstall.cmd 还原并报告。")) -f
                     (Split-Path $ald -Leaf), $sz) -ForegroundColor Red
     }
 }
@@ -774,9 +862,12 @@ if ($isZh) {
     foreach ($ald in @($gaPath, $gbPath)) {
         $sz = (Get-Item $ald).Length
         if ($sz -ge $AldSeekLimit) {
-            Write-Host (("  ! 警告: {0} が {1:N0} バイト - エンジンの2GB読み取り" +
-                        "上限を超えています。末尾の素材が表示されません。" +
-                        " Uninstall.cmd で戻してからご報告ください。") -f
+            Write-Host ((L ("  ! 警告: {0} が {1:N0} バイト - エンジンの2GB読み取り" +
+                            "上限を超えています。末尾の素材が表示されません。" +
+                            " Uninstall.cmd で戻してからご報告ください。") `
+                           ("  ! 警告: {0} 已达 {1:N0} 字节 - 超过引擎的2GB读取" +
+                            "上限，末尾素材将无法显示。" +
+                            " 请用 Uninstall.cmd 还原并报告。")) -f
                         (Split-Path $ald -Leaf), $sz) -ForegroundColor Red
         }
     }
@@ -797,14 +888,15 @@ foreach ($f in $mj.files) {
         # payload not generated AND the file is not part of this
         # install (e.g. AliceLogo3.* on vanilla) - nothing to do
         if (-not (Test-Path (Join-Path $GameDir $f.dst))) {
-            Write-Host "  $($f.dst) -> スキップ（この環境には存在しないファイル）"
+            Write-Host (L "  $($f.dst) -> スキップ（この環境には存在しないファイル）" `
+                          "  $($f.dst) -> 跳过（此环境不存在的文件）")
             continue
         }
-        Fail "素材が見つかりません: $($f.src)"
+        Fail (L "素材が見つかりません: $($f.src)" "找不到素材: $($f.src)")
     }
     $dst = Join-Path $GameDir $f.dst
     Copy-Item -Force $src $dst
-    Write-Host "  $($f.dst) -> 差し替え完了"
+    Write-Host (L "  $($f.dst) -> 差し替え完了" "  $($f.dst) -> 替换完成")
 }
 
 # generated movies land next to the originals (absent when generation
@@ -813,14 +905,15 @@ $movGenDir = Join-Path $genDir 'files\movie'
 if (Test-Path $movGenDir) {
     foreach ($f in (Get-ChildItem $movGenDir -File -Filter '*.alm')) {
         Copy-Item -Force $f.FullName (Join-Path $GameDir ('movie\' + $f.Name))
-        Write-Host "  movie\$($f.Name) -> HD化完了"
+        Write-Host (L "  movie\$($f.Name) -> HD化完了" "  movie\$($f.Name) -> HD 化完成")
     }
 }
 
 # ---------- System40.ini ----------
 
 Write-Host ""
-Write-Host "[5/5] System40.ini - 表示を1600x1200に設定します ..." -ForegroundColor Cyan
+Write-Host (L "[5/5] System40.ini - 表示を1600x1200に設定します ..." `
+              "[5/5] System40.ini - 设置分辨率为1600x1200 ...") -ForegroundColor Cyan
 # read/write as raw bytes via cp932 so no encoding conversion can corrupt
 # unrelated settings
 $enc932 = [Text.Encoding]::GetEncoding(932)
@@ -836,9 +929,12 @@ Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host "  ============================================================" -ForegroundColor Green
-Write-Host "   HDパッチの適用が完了しました。" -ForegroundColor Green
+Write-Host (L "   HDパッチの適用が完了しました。" "   HD 补丁安装完成。") -ForegroundColor Green
 Write-Host "  ============================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  バックアップ: $bakDir"
-Write-Host "  元に戻したいときは Uninstall.cmd を実行してください。"
-if ($Elevated) { Read-Host "Enterキーを押して閉じてください" | Out-Null }
+Write-Host ((L "  バックアップ: " "  备份: ") + $bakDir)
+Write-Host (L "  元に戻したいときは Uninstall.cmd を実行してください。" `
+              "  如需还原请运行 Uninstall.cmd。")
+if ($Elevated) {
+    Read-Host (L "Enterキーを押して閉じてください" "按 Enter 键关闭") | Out-Null
+}
