@@ -64,6 +64,7 @@ Steam版「戦国ランス」の表示を 800x600 から 1600x1200 の
    AnimeJaNai HD v3 Sharp1 UltraCompact（CC BY-NC-SA 4.0）
    詳細は LICENSES\model.txt をご覧ください
  * alice-tools（GPL）: bin\alice.exe
+ * ffmpeg（GPL）: bin\ffmpeg.exe（ムービーHD化のみに使用）
    詳細は LICENSES\ 内をご覧ください
 
  不具合・報告は配布ページ（GitHubリポジトリ）のIssuesまで。

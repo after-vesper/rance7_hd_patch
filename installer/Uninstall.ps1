@@ -118,12 +118,15 @@ if (-not (Test-Path (Join-Path $BackupDir 'Rance7.ain'))) {
 
 $files = @('Rance7.ain', 'Rance7GM.ald', 'Rance7GA.ald', 'Rance7BA.ald',
            'Rance7WA.ald', 'System40.ini', 'AliceLogo3.alk',
-           'DLL\AliceLogo3.dll')
+           'DLL\AliceLogo3.dll',
+           'movie\Rance7OP.alm', 'movie\Staff.alm')
 $restored = @()
 foreach ($f in $files) {
     $src = Join-Path $BackupDir $f
     $dst = Join-Path $GameDir $f
     if (Test-Path $src) {
+        New-Item -ItemType Directory -Force -Path (Split-Path $dst) |
+            Out-Null
         Copy-Item -Force $src $dst
         $restored += ,@($src, $dst, $f)
         Write-Host "  復元: $f"

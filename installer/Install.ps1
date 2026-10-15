@@ -7,6 +7,7 @@
       * Rance7.ain   - anchor-based coordinate/layout doubling
       * Rance7GM.ald / Rance7GA.ald - HD asset payload repack
       * AliceLogo3.alk / DLL\AliceLogo3.dll - HD logo animation
+      * movie\Rance7OP.alm / movie\Staff.alm - HD OP/ED movies
       * System40.ini - ViewWidth/ViewHeight -> 1600x1200
     Compatible with vanilla, JP-patched and unofficial-patch installs,
     in any application order. Creates a timestamped backup
@@ -205,8 +206,13 @@ Write-Host ""
 # ---------- free space check (repack needs orig + new archive) ----------
 
 # orig archives + new archives + generated intermediates + persistent
-# payload cache (~2.5 GB each)
+# payload cache (~2.5 GB each) + movie originals (backed up) and the
+# ~1.4x larger HD re-encodes staged next to them
 $need = (Get-Item $gmPath).Length + (Get-Item $gaPath).Length + 8GB
+foreach ($mv in @('movie\Rance7OP.alm', 'movie\Staff.alm')) {
+    $mp = Join-Path $GameDir $mv
+    if (Test-Path $mp) { $need += (Get-Item $mp).Length * 2 }
+}
 $drive = (Get-Item $GameDir).PSDrive
 $free = (Get-PSDrive $drive.Name).Free
 if ($free -lt $need) {
@@ -220,10 +226,13 @@ $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 $bakDir = Join-Path $GameDir "backup\hd_$stamp"
 New-Item -ItemType Directory -Force -Path $bakDir | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $bakDir 'DLL') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $bakDir 'movie') | Out-Null
 
 $looseSrc = @(
     @{ g = 'AliceLogo3.alk';        b = 'AliceLogo3.alk' },
-    @{ g = 'DLL\AliceLogo3.dll';    b = 'DLL\AliceLogo3.dll' }
+    @{ g = 'DLL\AliceLogo3.dll';    b = 'DLL\AliceLogo3.dll' },
+    @{ g = 'movie\Rance7OP.alm';    b = 'movie\Rance7OP.alm' },
+    @{ g = 'movie\Staff.alm';       b = 'movie\Staff.alm' }
 )
 $protected = @('Rance7.ain', 'Rance7GM.ald', 'Rance7GA.ald', 'System40.ini')
 foreach ($f in $protected) {
@@ -369,6 +378,32 @@ New-Item -Force -ItemType Directory (Split-Path $dllOut) | Out-Null
 Write-Host "  AliceLogo3.dll に $dllChanged 箇所パッチ（800x600 -> 1600x1200）"
 } else {
     Write-Host "  DLL\AliceLogo3.dll は存在しないためスキップ"
+}
+
+# movie/*.alm: regenerate the OP/ED at 1280x960 from the backed-up
+# originals (MPEG-1 video + MP2 audio program stream, same profile as
+# the source so the stock DirectShow path plays it). Optional: needs
+# the bundled ffmpeg; a failure leaves the original SD movies in place.
+$ffmpegExe = Join-Path $Root 'bin\ffmpeg.exe'
+$movSrcDir = Join-Path $bakDir 'movie'
+$movOutDir = Join-Path $genDir 'files\movie'
+if ((Test-Path $movSrcDir) -and
+    @(Get-ChildItem $movSrcDir -Filter '*.alm' -ErrorAction SilentlyContinue).Count -gt 0) {
+    if (Test-Path $ffmpegExe) {
+        Write-Host "  OP/EDムービーをHD化しています（数分かかります） ..."
+        & $pyExe (Join-Path $Root 'gen\gen_movie.py') `
+            --src-dir $bakDir --dst-dir $movOutDir `
+            --ffmpeg $ffmpegExe --cache-dir $cacheDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host ("  ! ムービー生成に失敗しました - 元のムービーのまま続行します") `
+                -ForegroundColor Yellow
+            Remove-Item -Recurse -Force $movOutDir -ErrorAction SilentlyContinue
+        }
+    } else {
+        Write-Host "  bin\ffmpeg.exe が無いためムービーHD化をスキップ" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  movie/*.alm は存在しないためスキップ"
 }
 
 # ---------- AIN patch ----------
@@ -602,6 +637,16 @@ foreach ($f in $mj.files) {
     $dst = Join-Path $GameDir $f.dst
     Copy-Item -Force $src $dst
     Write-Host "  $($f.dst) -> 差し替え完了"
+}
+
+# generated movies land next to the originals (absent when generation
+# was skipped - the originals then stay untouched)
+$movGenDir = Join-Path $genDir 'files\movie'
+if (Test-Path $movGenDir) {
+    foreach ($f in (Get-ChildItem $movGenDir -File -Filter '*.alm')) {
+        Copy-Item -Force $f.FullName (Join-Path $GameDir ('movie\' + $f.Name))
+        Write-Host "  movie\$($f.Name) -> HD化完了"
+    }
 }
 
 # ---------- System40.ini ----------

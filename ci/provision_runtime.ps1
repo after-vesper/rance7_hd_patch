@@ -52,6 +52,26 @@ try {
         Copy-Item $exe.FullName (Join-Path $binDir 'alice.exe')
     }
 
+    # ffmpeg (imageio-ffmpeg wheel) - decodes/re-encodes the OP/ED
+    # movies at install time. Static GPL build; mpeg1video+mp2+vcd only
+    # need ~64 MB of it, which is still the smallest maintained option.
+    if (-not (Test-Path (Join-Path $binDir 'ffmpeg.exe'))) {
+        Write-Host '==> downloading ffmpeg (imageio-ffmpeg 0.5.1 wheel)'
+        $ffdir = Join-Path $tmp 'ffpkg'
+        & $Python -m pip download --quiet --no-deps -d $ffdir `
+            'imageio-ffmpeg==0.5.1'
+        if ($LASTEXITCODE -ne 0) { throw 'pip download failed' }
+        $whl = Get-ChildItem $ffdir -Filter '*win_amd64.whl' |
+               Select-Object -First 1
+        if (-not $whl) { throw 'imageio-ffmpeg wheel not found' }
+        Copy-Item $whl.FullName ($whl.FullName + '.zip')
+        Expand-Archive -Force ($whl.FullName + '.zip') (Join-Path $ffdir 'x')
+        $exe = Get-ChildItem (Join-Path $ffdir 'x') -Recurse -Filter 'ffmpeg-*.exe' |
+               Select-Object -First 1
+        if (-not $exe) { throw 'ffmpeg.exe not found in imageio-ffmpeg wheel' }
+        Copy-Item $exe.FullName (Join-Path $binDir 'ffmpeg.exe')
+    }
+
     # smoke test: the runtime must import our dependencies
     & (Join-Path $rtDir 'python.exe') -c `
         'import numpy, PIL, onnxruntime; from scipy.ndimage import binary_dilation; print("runtime OK")'
