@@ -127,7 +127,8 @@ def main():
         rec = recipes.get(str(i), 'ai')
         up = gr.apply(rec, img)
         entries[i] = qnt_fast.encode_pil(
-            up, want_alpha, x=x * 2, y=y * 2, level=6)
+            up, want_alpha, x=x * 2, y=y * 2,
+            level=int(os.environ.get('GEN_QNT_LEVEL', '3')))
         n_gen += 1
         show(n_gen)
     show(n_gen, final=True)

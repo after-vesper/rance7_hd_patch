@@ -258,7 +258,7 @@ if (-not (Test-Path $pyExe)) { Fail "missing installer file: $pyExe" }
 
 Write-Host ""
 Write-Host "[1/5] Generating HD assets from your game data ..."
-Write-Host "      (AI upscaling; ~20-30 min with a DirectML-capable GPU,"
+Write-Host "      (AI upscaling; a few minutes with a DirectML-capable GPU,"
 Write-Host "       faster on re-install thanks to the payload cache)"
 $pyArgs = @(
     (Join-Path $Root 'gen\gen_ring.py'),

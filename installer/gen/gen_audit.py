@@ -27,7 +27,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 import ald  # noqa: E402
-import qnt  # noqa: E402
+import qnt_fast  # noqa: E402
 
 import numpy as np  # noqa: E402
 from PIL import Image  # noqa: E402
@@ -53,8 +53,16 @@ _sess = None
 def sess():
     global _sess
     if _sess is None:
+        # Tiny per-tile ops gain nothing from ORT's default thread pools
+        # (one pool per session, sized to the core count); with N worker
+        # processes each spawning its own session that becomes a thread
+        # storm. Keep them minimal.
+        so = ort.SessionOptions()
+        so.intra_op_num_threads = 1
+        so.inter_op_num_threads = 1
         _sess = ort.InferenceSession(
-            MODEL, providers=['DmlExecutionProvider', 'CPUExecutionProvider'])
+            MODEL, sess_options=so,
+            providers=['DmlExecutionProvider', 'CPUExecutionProvider'])
     return _sess
 
 
@@ -102,7 +110,7 @@ def src_payload(alds, name, variants):
 
 
 def to_img(payload):
-    w, h, ch, px = qnt.decode(payload)
+    w, h, ch, px = qnt_fast.decode(payload)
     return Image.frombytes('RGBA' if ch == 4 else 'RGB', (w, h), px,
                            'raw', 'BGRA' if ch == 4 else 'BGR')
 

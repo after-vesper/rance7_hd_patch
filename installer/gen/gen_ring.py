@@ -1,21 +1,22 @@
 # -*- coding: utf-8 -*-
-"""Ring-buffer pipelined payload generator (multiprocess).
+"""Pipelined payload generator (multiprocess, per-worker GPU sessions).
 
-One GPU session lives in the main process and stays saturated at
-batch<=16. Worker processes own whole jobs end-to-end:
+Each worker process owns whole jobs end-to-end and holds its own ONNX
+session, so no tile data crosses process boundaries:
 
   worker main loop : decode source -> build model input -> split tiles
-                     -> push tile requests to req_q
-  worker consumer thread : collect results from its own res_q, when a
-                     job is complete reassemble + apply recipe + save
-                     PNG -> notify manifest entry via mft_q
+                     -> infer tiles on the local session -> combine tiles
+                     -> recipe postproc -> encode payload -> write file
+                     -> notify manifest entry via mft_q
 
-Backpressure comes from bounded queues; each worker also caps the number
-of in-flight jobs (PENDING_MAX) so source images don't pile up.
+Workers run serially by default (FIN_THREADS=0): per-process finisher
+threads contend on the GIL and were ~3x slower than letting each worker
+complete its job inline. Parallelism comes from process count instead.
 
-Tile transport uses mp.Queue (pickled bytes) rather than shared memory:
-~0.4MB/tile at <=30 tiles/s is ~12MB/s, far below pipe capacity, so the
-simpler transport does not limit the GPU.
+Backpressure: each worker caps in-flight finish jobs (PENDING_MAX) so
+source images and raw outputs don't pile up. The GPU is a shared
+resource — N workers issuing in parallel saturate it without any
+tile-passing IPC overhead.
 """
 
 import argparse
@@ -28,7 +29,7 @@ import struct
 import sys
 import threading
 import time
-from queue import Empty
+
 
 import numpy as np
 from PIL import Image
@@ -49,10 +50,10 @@ import gen_payload as gp  # noqa: E402
 
 TILE, OV = ga.TILE, ga.OV
 BATCH = 16            # default; calibrated at startup for the local GPU
-REQ_MAX = 512         # ~200MB of fp16 tiles in flight, max
-RES_MAX = 384         # ~300MB of outputs buffered per worker, max
-PENDING_MAX = 24      # jobs in flight per worker
-FIN_THREADS = 4       # reassemble+save threads per worker process
+PENDING_MAX = 8       # jobs in flight per worker (each buffers ~20-40 MB
+                      # of raw fp16 outputs + images; 12 workers x 24 slots
+                      # exhausted host commit -> MemoryError storms)
+FIN_THREADS = int(os.environ.get('GEN_FIN_THREADS', '0'))
 BATCH_CANDIDATES = (4, 8, 16)
 
 NO_GPU = {'nearest', 'lanczos', 'manual'}
@@ -82,26 +83,26 @@ class _W:
     pass
 
 
-def _worker_main(wid, job_q, req_q, res_q, mft_q, out_dir, emit_qnt):
+def _worker_main(wid, job_q, mft_q, out_dir, emit_qnt, batch, gpu_sem):
     global _w
     _w = _W()
     _w.emit_qnt = emit_qnt
     _w.alds = ga.load_sources()
-    _w.res_q = res_q
     _w.mft_q = mft_q
-    _w.req_q = req_q
     _w.out_dir = out_dir
     _w.wid = wid
+    _w.batch = batch
     _w.cache_dir = os.environ.get('GEN_CACHE_DIR')
     _w.cache_tag = os.environ.get('GEN_CACHE_TAG', '')
-    _w.seq = 0
-    _w.pending = {}
+    _w.qnt_level = int(os.environ.get('GEN_QNT_LEVEL', '3'))
     _w.slots = threading.Semaphore(PENDING_MAX)
-    _w.done = threading.Event()
-    _w.fin = ThreadPoolExecutor(FIN_THREADS)
+    _w.fin = ThreadPoolExecutor(FIN_THREADS) if FIN_THREADS else None
+    _w.sess = ga.sess()
+    _w.inp = _w.sess.get_inputs()[0].name
+    _w.gpu_sem = gpu_sem
+    _w.tiles = 0
+    _w.st = {}
 
-    ct = threading.Thread(target=_consumer, daemon=True)
-    ct.start()
     while True:
         spec = job_q.get()
         if spec is None:
@@ -112,11 +113,9 @@ def _worker_main(wid, job_q, req_q, res_q, mft_q, out_dir, emit_qnt):
             arch, var, fn, rec, order = spec
             mft_q.put(('ERR', '%s/%s/%s [%s]: %s'
                        % (arch, var, fn, rec, e)))
-    # all my tiles are queued; tell the gpu loop, then wait for drain
-    req_q.put(('END', wid))
-    _w.done.wait()
-    ct.join()
-    _w.fin.shutdown(wait=True)
+    if _w.fin is not None:
+        _w.fin.shutdown(wait=True)
+    mft_q.put(('STATS', wid, _w.tiles, _w.st))
 
 
 def _cache_key(src, rec):
@@ -142,9 +141,28 @@ def _cache_put(key, blob):
     os.replace(tmp, p)
 
 
+def _stage(name, t0):
+    _w.st[name] = _w.st.get(name, 0.0) + (time.time() - t0) * 1000
+
+
+def _infer(fn, arg):
+    """Run one inference under the cross-process GPU semaphore; retry
+    once on transient allocator failures."""
+    _w.gpu_sem.acquire()
+    try:
+        return fn(arg)
+    except Exception:
+        time.sleep(0.05)
+        return fn(arg)
+    finally:
+        _w.gpu_sem.release()
+
+
 def _start_job(spec):
     arch, var, fn, rec, order = spec
+    t0 = time.time()
     src, at = ga.src_payload(_w.alds, fn, order)
+    _stage('src', t0)
     if src is None:
         raise FileNotFoundError('no source for %s' % fn)
     if rec == 'manual':
@@ -156,8 +174,10 @@ def _start_job(spec):
         if blob is not None:
             _cache_hit(spec, at, blob)
             return
+    t0 = time.time()
     si = ajp.decode_rgba(src) if fn.lower().endswith('.ajp') \
         else ga.to_img(src)
+    _stage('decode', t0)
     if rec in NO_GPU:
         out = gr.apply(rec, si)
         _save_and_report(spec, at, out, src, ckey)
@@ -174,82 +194,83 @@ def _start_job(spec):
         inp_im = cv.convert('RGB')
     W2, H2 = inp_im.size
     tiles = ga.split_grid(inp_im, TILE, TILE, OV)
-    _w.slots.acquire()
-    seq = _w.seq
-    _w.seq += 1
     if not any(row[2] for row in tiles):
         # sub-overlap: single native-size inference (raw HWC RGB)
-        _w.pending[seq] = {'si': si, 'recipe': rec, 'name': fn,
-                           'arch': arch, 'var': var, 'src': at,
-                           'srcbytes': src, 'ckey': ckey,
-                           'outs': {}, 'left': 1,
-                           'W': W2 * 2, 'H': H2 * 2,
-                           'native': (W2, H2)}
-        _w.req_q.put((_w.wid, seq, 0, 'N', W2, H2,
-                      np.asarray(inp_im).tobytes()))
+        o = _infer(lambda a: ga.infer_tile(np.asarray(a), _w.inp,
+                                         _w.sess), inp_im)
+        _w.tiles += 1
+        j = {'si': si, 'recipe': rec, 'name': fn,
+             'arch': arch, 'var': var, 'src': at,
+             'srcbytes': src, 'ckey': ckey,
+             'outs': {0: np.asarray(o)},
+             'W': W2 * 2, 'H': H2 * 2, 'native': (W2, H2)}
+        _submit_finish(j)
         return
+    t0 = time.time()
     meta_tiles, items = gf.prepare_tiles(inp_im)
-    _w.pending[seq] = {'si': si, 'recipe': rec, 'name': fn,
-                       'arch': arch, 'var': var, 'src': at,
-                       'srcbytes': src, 'ckey': ckey,
-                       'tiles': meta_tiles, 'outs': {},
-                       'left': len(items), 'W': W2 * 2, 'H': H2 * 2,
-                       'native': None}
-    for i, arr in items:
-        _w.req_q.put((_w.wid, seq, i, 'T', arr.tobytes()))
+    _stage('prep', t0)
+    outs = {}
+    t0 = time.time()
+    for i in range(0, len(items), _w.batch):
+        chunk = items[i:i + _w.batch]
+        a = np.stack([c[1] for c in chunk])
+        res = _infer(lambda arr: _w.sess.run(None, {_w.inp: arr})[0], a)
+        _w.tiles += len(chunk)
+        # whole-batch fp16 -> u8 BGR: one vector pass instead of
+        # per-tile numpy ops in the finisher
+        u8 = np.clip(res * np.float16(255.0), 0, 255) \
+            .transpose(0, 2, 3, 1)[:, :, :, ::-1].astype(np.uint8)
+        for (ti, _), o in zip(chunk, u8):
+            outs[ti] = o
+    _stage('infer', t0)
+    j = {'si': si, 'recipe': rec, 'name': fn,
+         'arch': arch, 'var': var, 'src': at,
+         'srcbytes': src, 'ckey': ckey,
+         'tiles': meta_tiles, 'outs': outs,
+         'W': W2 * 2, 'H': H2 * 2, 'native': None}
+    _submit_finish(j)
 
 
-def _consumer():
-    while True:
-        item = _w.res_q.get()
-        if item is None:
-            _w.done.set()
-            return
-        if item[0] == 'ERR':
-            seq, msg = item[1], item[2]
-            j = _w.pending.pop(seq, None)
-            if j is not None:
-                _w.mft_q.put(('ERR', '%s/%s/%s: %s'
-                              % (j['arch'], j['var'], j['name'], msg)))
-                _w.slots.release()
-            continue
-        (wid, seq), tid, kind = item[0], item[1], item[2]
-        j = _w.pending.get(seq)
-        if j is None:
-            continue
-        if kind == 'N':
-            w2, h2, buf = item[3], item[4], item[5]
-            arr = np.frombuffer(buf, np.uint8).reshape(h2, w2, 3)
-        else:
-            arr = np.frombuffer(item[3], np.uint8).reshape(
-                TILE * 2, TILE * 2, 3)
-        j['outs'][tid] = arr
-        j['left'] -= 1
-        if j['left'] == 0:
-            _w.pending.pop(seq)
-            _w.fin.submit(_finish_safe, seq, j)
+def _submit_finish(j):
+    if _w.fin is None:
+        _finish_safe(j)
+        return
+    t0 = time.time()
+    _w.slots.acquire()
+    _stage('slotwait', t0)
+    _w.fin.submit(_finish_safe, j)
 
 
-def _finish_safe(seq, j):
+def _finish_safe(j):
+    t0 = time.time()
     try:
-        _finish(seq, j)
+        _finish(j)
     except Exception as e:
         _w.mft_q.put(('ERR', '%s/%s/%s: %s'
                       % (j['arch'], j['var'], j['name'], e)))
     finally:
-        _w.slots.release()
+        _stage('finish', t0)
+        if _w.fin is not None:
+            _w.slots.release()
 
 
-def _finish(seq, j):
+def _finish(j):
+    t0 = time.time()
     if j['native'] is not None:
         w, h = j['native']
         rgb = Image.fromarray(j['outs'][0]).crop((0, 0, w * 2, h * 2))
     else:
-        ims = {i: Image.fromarray(a) for i, a in j['outs'].items()}
+        ims = {i: Image.fromarray(a)
+               for i, a in j['outs'].items()}
         rgb = gf.combine(j['tiles'], ims, j['W'], j['H'])
+    _stage('f_conv', t0)
+    t0 = time.time()
     out = gr.apply(j['recipe'], j['si'], rgb=rgb)
+    _stage('f_apply', t0)
+    t0 = time.time()
     _save_and_report((j['arch'], j['var'], j['name'], j['recipe'], None),
                      j['src'], out, j.get('srcbytes'), j.get('ckey'))
+    _stage('f_save', t0)
 
 
 def _cache_hit(spec, src_at, blob):
@@ -290,7 +311,7 @@ def _save_and_report(spec, src, out, src_bytes=None, ckey=None):
                               alpha, src_bytes)
         else:
             blob = qnt_fast.encode_pil(
-                out, out.mode in ('RGBA', 'LA', 'PA'), level=6)
+                out, out.mode in ('RGBA', 'LA', 'PA'), level=_w.qnt_level)
         with open(os.path.join(d, fn), 'wb') as f:
             f.write(blob)
         if ckey is not None:
@@ -341,72 +362,7 @@ def calibrate_batch(s, inp):
     return BATCH
 
 
-def gpu_loop(req_q, res_qs, n_workers):
-    """Single ONNX session; batch tile requests, route results back."""
-    s = ga.sess()
-    inp = s.get_inputs()[0].name
-    calibrate_batch(s, inp)
-    ends = 0
-    n_in = n_out = 0
-    t0 = time.time()
-    while True:
-        try:
-            first = req_q.get(timeout=0.05)
-        except Empty:
-            first = None
-        batch = []
-        if first is not None:
-            batch.append(first)
-        while len(batch) < BATCH:
-            try:
-                it = req_q.get_nowait()
-            except Empty:
-                break
-            batch.append(it)
-        if not batch:
-            if ends >= n_workers:
-                break
-            continue
-        tiles = [b for b in batch if b[0] != 'END']
-        ends += sum(1 for b in batch if b[0] == 'END')
-        if tiles:
-            _run_batch(tiles, res_qs, s, inp)
-            n_in += len(tiles)
-        if ends >= n_workers and req_q.empty():
-            break
-    for q in res_qs:
-        q.put(None)
-    _log('gpu: %d tiles in %.1fs (%.1f tiles/s)'
-         % (n_in, time.time() - t0, n_in / (time.time() - t0)))
 
-
-def _run_batch(tiles, res_qs, s, inp):
-    singles = [b for b in tiles if b[3] == 'N']
-    normal = [b for b in tiles if b[3] == 'T']
-    if normal:
-        try:
-            a = np.stack([np.frombuffer(b[4], np.float16)
-                          .reshape(3, TILE, TILE) for b in normal])
-            res = s.run(None, {inp: a})[0]
-        except Exception as e:
-            for b in normal:
-                res_qs[b[0]].put(('ERR', b[1], str(e)))
-            res = None
-        if res is not None:
-            for b, o in zip(normal, res):
-                o = np.transpose(o, (1, 2, 0))[:, :, ::-1].copy()
-                u8 = np.clip(o * 255, 0, 255).astype(np.uint8)
-                res_qs[b[0]].put(((b[0], b[1]), b[2], 'T',
-                                  u8.tobytes()))
-    for b in singles:
-        wid, seq, tid, _, w, h, buf = b
-        try:
-            arr = np.frombuffer(buf, np.uint8).reshape(h, w, 3)
-            o = np.asarray(ga.infer_tile(arr, inp, s))
-            res_qs[wid].put(((wid, seq), tid, 'N', o.shape[1],
-                             o.shape[0], o.tobytes()))
-        except Exception as e:
-            res_qs[wid].put(('ERR', seq, str(e)))
 
 
 # ------------------------------------------------------------------ main
@@ -476,7 +432,11 @@ def main():
                          '--emit-qnt only)')
     args = ap.parse_args()
     if args.workers <= 0:
-        args.workers = max(4, min(16, (os.cpu_count() or 8) // 2))
+        # serial workers (FIN_THREADS=0) can go closer to the core count;
+        # threaded finishers share each worker's GIL so fewer help
+        n = (os.cpu_count() or 8)
+        args.workers = max(4, min(20, n - 2)) if FIN_THREADS == 0 \
+            else max(4, min(16, n // 2))
         avail = _avail_commit_mb()
         if avail is not None:
             # each worker commits ~500 MB (interpreter + numpy/scipy/ort
@@ -549,16 +509,23 @@ def main():
 
     ctx = mp.get_context('spawn')
     job_q = ctx.Queue()
-    req_q = ctx.Queue(maxsize=REQ_MAX)
     mft_q = ctx.Queue()
-    res_qs = [ctx.Queue(maxsize=RES_MAX) for _ in range(args.workers)]
     for s_ in specs:
         job_q.put(s_)
     for _ in range(args.workers):
         job_q.put(None)
 
+    # Calibrate the tile batch size once in the main process (before the
+    # workers start competing for the GPU), then hand it to each worker's
+    # own inference session.
+    sess = ga.sess()
+    batch = calibrate_batch(sess, sess.get_inputs()[0].name)
+    ga._sess = None
+    del sess
+
     meta = {}
-    n_done = n_err = 0
+    stage_ms = {}
+    n_done = n_err = n_tiles = 0
     expect = len(specs)
     is_tty = sys.stdout.isatty()
     t_prog = time.time()
@@ -595,7 +562,7 @@ def main():
             _log(line)
 
     def drain_mft():
-        nonlocal n_done, n_err
+        nonlocal n_done, n_err, n_tiles
         while True:
             m = mft_q.get()
             if m is None:
@@ -603,6 +570,10 @@ def main():
             if m[0] == 'ERR':
                 _log(m[1])
                 n_err += 1
+            elif m[0] == 'STATS':
+                n_tiles += m[2]
+                for k, v in m[3].items():
+                    stage_ms[k] = stage_ms.get(k, 0.0) + v
             else:
                 sub, fn, info = m
                 meta.setdefault(sub, {})[fn] = info
@@ -612,18 +583,30 @@ def main():
     dt = threading.Thread(target=drain_mft, daemon=True)
     dt.start()
 
+    # Cap simultaneous inferences: enough concurrency to keep the GPU
+    # busy, bounded so concurrent DirectML allocations can't exhaust
+    # memory when many workers burst at once.
+    gpu_sem = ctx.Semaphore(min(args.workers, 8))
     procs = [ctx.Process(target=_worker_main,
-                         args=(i, job_q, req_q, res_qs[i], mft_q,
-                               args.out, args.emit_qnt))
+                         args=(i, job_q, mft_q, args.out,
+                               args.emit_qnt, batch, gpu_sem))
              for i in range(args.workers)]
+    t_gpu = time.time()
     for p in procs:
         p.start()
-    gpu_loop(req_q, res_qs, args.workers)
     for p in procs:
         p.join()
     mft_q.put(None)
     dt.join()
     show_progress(final=True)
+    el = time.time() - t_gpu
+    if n_tiles:
+        _log('gpu: %d tiles in %.1fs (%.1f tiles/s)'
+             % (n_tiles, el, n_tiles / el))
+    if stage_ms and os.environ.get('GEN_STATS'):
+        _log('stage ms/img (worker-total): ' + ', '.join(
+            '%s=%.0f' % (k, v / max(1, expect))
+            for k, v in sorted(stage_ms.items())))
 
     for sub, m in meta.items():
         d = os.path.join(args.out, sub)
