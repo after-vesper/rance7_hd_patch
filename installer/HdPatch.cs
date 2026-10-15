@@ -608,12 +608,16 @@ public static class HdPatch
     /// preserved; added entries are appended in name order.
     /// extraLinkRows: additional link-table overrides
     /// (fileNumber -> {disk, filesIndex}) applied after own entries.
+    /// noAppend: payloads whose name is not already in the archive are
+    /// skipped instead of appended (used for layouts where the archive
+    /// set is fixed, e.g. the zh build where each archive's link table
+    /// only covers its own native entries).
     /// Returns { fileCount, overridden, added }.
     /// </summary>
     public static int[] RepackAld(string srcPath, string dstPath,
         string[] payloadDirs, int disk, Action<string> log,
         Dictionary<int, int[]> extraLinkRows,
-        Action<long, long> progress = null)
+        Action<long, long> progress = null, bool noAppend = false)
     {
         using (var fs = new FileStream(srcPath, FileMode.Open,
                    FileAccess.Read, FileShare.Read))
@@ -640,11 +644,21 @@ public static class HdPatch
             if (payloadDirs != null)
                 foreach (var dir in payloadDirs)
                     if (dir != null && Directory.Exists(dir))
+                        // manifest.json bookkeeping files share the
+                        // payload dirs; only real payloads get baked in
                         foreach (var f in Directory.GetFiles(dir))
-                            payloads[Path.GetFileName(f)] = f;
+                            if (!f.EndsWith(".json",
+                                    StringComparison.OrdinalIgnoreCase))
+                                payloads[Path.GetFileName(f)] = f;
             var present = new HashSet<string>(entries.Select(e => e.Name));
             var added = payloads.Keys.Where(n => !present.Contains(n))
                 .OrderBy(n => n, StringComparer.Ordinal).ToList();
+            if (noAppend)
+            {
+                foreach (var n in added)
+                    payloads.Remove(n);
+                added.Clear();
+            }
             int overridden = payloads.Count - added.Count;
 
             // original order preserved (other archives' link tables hold
@@ -772,12 +786,17 @@ public static class HdPatch
                         w.WriteByte((byte)(((kv.Value[1] + 1) >> 8) & 0xFF));
                     }
 
-                // footer
+                // footer - keep the original entry count convention
+                // (zh GA lists its duplicated cg59001.QNT only once, so
+                // files.Count would be one higher than the shipped count)
+                fs.Seek(fs.Length - 16 + 9, SeekOrigin.Begin);
+                int origCount = fs.ReadByte() | (fs.ReadByte() << 8);
                 w.Position = pos;
                 w.Write(new byte[] { (byte)'N', (byte)'L', 1, 0 }, 0, 4);
                 w.Write(BitConverter.GetBytes(0x10), 0, 4);
                 w.WriteByte((byte)(disk + 1));
-                w.Write(BitConverter.GetBytes((ushort)count), 0, 2);
+                w.Write(BitConverter.GetBytes(
+                    (ushort)(origCount + added.Count)), 0, 2);
                 w.Write(new byte[5], 0, 5);
             }
             return new[] { count, overridden, added.Count };

@@ -7117,6 +7117,14 @@
     "cg09325.QNT",
     "cg6017.QNT"
    ]
+  },
+  "Rance7GB.ald": {
+   "dir": "GB",
+   "disk": 0,
+   "shared": [],
+   "jp": [],
+   "vanilla": [],
+   "zh": []
   }
  },
  "files": [
@@ -7127,6 +7135,14 @@
   {
    "src": "files/DLL/AliceLogo3.dll",
    "dst": "DLL/AliceLogo3.dll"
+  },
+  {
+   "src": "files/AliceLogo2.alk",
+   "dst": "AliceLogo2.alk"
+  },
+  {
+   "src": "files/DLL/AliceLogo2.dll",
+   "dst": "DLL/AliceLogo2.dll"
   }
  ],
  "ain_sites": "hd_sites.json",

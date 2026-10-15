@@ -9,7 +9,7 @@ Steam 版 **戦国ランス (Sengoku Rance / Rance 7)** の画面を、固定の
 
 - **論理解像度 1600×1200** — `Rance7.ain` 内の座標・レイアウト定数を全面的に2倍化(実行ファイルは一切変更しません)
 - **画像素材の高解像度化** — CG・立ち絵・UI・戦闘画面・マップなど約6,600件の画像を、AIアップスケーリングで2倍化して再格納します
-- **起動ロゴもHD化** — `AliceLogo3.alk` のロゴ演出と `DLL\AliceLogo3.dll` を高解像度対応させます
+- **起動ロゴもHD化** — `AliceLogo*.alk` のロゴ演出と `DLL\AliceLogo*.dll` を高解像度対応させます(日本語版: AliceLogo3 / 中国語版: AliceLogo2)
 - **OP/EDムービーもHD化** — `movie\` 内のムービーをAIで2倍化して再エンコードします(640×480 → 1280×960)
 - **インストール時生成** — HD素材はあなたのゲームデータからその場で生成します。パッケージサイズは約 120 MB
 - **バリアント自動検出** — ゲームの適用状態を自動判別して適切にパッチを適用
@@ -17,7 +17,7 @@ Steam 版 **戦国ランス (Sengoku Rance / Rance 7)** の画面を、固定の
 
 ## 動作環境
 
-- **Steam 版 戦国ランス**(通常版 / JPパッチ適用済み / 他の非公式パッチ適用済み)
+- **Steam 版 戦国ランス**(通常版 / JPパッチ適用済み / 中国語(簡体字)版 / 他の非公式パッチ適用済み)
 - **DirectML 対応 GPU 推奨** — ない場合でも動作しますが、初回の素材生成にかなり時間がかかります
 - **空き容量 約 9 GB** — 生成途中の作業領域とバックアップ用(完了後に作業領域は自動削除されます)
 
@@ -27,6 +27,7 @@ Steam 版 **戦国ランス (Sengoku Rance / Rance 7)** の画面を、固定の
 
 - バニラ(Steam 版そのまま)
 - JP パッチ適用済み
+- 中国語(簡体字)版
 - その他の非公式パッチ適用済みの構成も、AIN の変更箇所が重ならない限り自動判別されます
 
 > **他パッチとの併用ルール**: 他のパッチは HD パッチより先に当ててください。HD 適用後に他パッチを当てて表示が崩れた場合は、`Uninstall.cmd` で一度元に戻してから、再度インストールしてください。
@@ -51,8 +52,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1 -GameDir "D:\Gam
 
 - `Rance7.ain` — 座標・レイアウト定数の2倍化
 - `Rance7GM.ald` / `Rance7GA.ald` — 描画データの高解像度化(アーカイブが2GBを超える場合は自動で GA 側へ振り分けます)
-- `AliceLogo3.alk` / `DLL\AliceLogo3.dll` — 起動ロゴ演出の高解像度化
-- `movie\Rance7OP.alm` / `movie\Staff.alm` — OP/EDムービーの高解像度化
+  - 中国語版では `Rance7GA.ald` / `Rance7GB.ald` が対象になります(`Rance7GM.ald` は変更しません)
+- `AliceLogo*.alk` / `DLL\AliceLogo*.dll` — 起動ロゴ演出の高解像度化(存在する場合)
+- `movie\*.alm` — OP/EDムービーの高解像度化(存在するものすべて)
 - `System40.ini` — `ViewWidth` / `ViewHeight` を 1600×1200 に設定
 
 いずれも書き換え前に `backup\hd_<日時>\` へ元ファイルが保存されます。
@@ -81,7 +83,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1 -GameDir "D:\Gam
 
 ## 注意事項
 
-- **対象は Steam 版**です(通常版・JPパッチ適用済みの両方に対応)
+- **対象は Steam 版**です(通常版・JPパッチ適用済み・中国語(簡体字)版に対応)
 - GPU が DirectML 非対応の場合、初回生成が CPU 実行となり時間がかかります
 - インストーラはゲーム実行ファイル(`Rance7.exe`)を一切変更しません
 - アンチウイルスソフトがスクリプトや同梱ツールを誤検知する場合があります。その際は除外設定を行ってください

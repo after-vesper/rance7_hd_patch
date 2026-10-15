@@ -190,8 +190,9 @@ def _prep_job(spec):
             _cache_hit(spec, at, blob)
             return None
     t0 = time.time()
-    si = ajp.decode_rgba(src) if fn.lower().endswith('.ajp') \
-        else ga.to_img(src)
+    # dispatch on magic, not extension: the zh build has .AJP-named
+    # entries that actually hold QNT payloads
+    si = ajp.decode_rgba(src) if src[:3] == b'AJP' else ga.to_img(src)
     _stage('decode', t0)
     if rec in NO_GPU:
         out = gr.apply(rec, si)
@@ -296,7 +297,7 @@ def _cache_hit(spec, src_at, blob):
     with open(os.path.join(d, fn), 'wb') as f:
         f.write(blob)
     # bpp for the manifest: QNT alpha flag at 0x28, AJP alpha_size 0x20
-    if fn.lower().endswith('.ajp'):
+    if blob[:3] == b'AJP':
         bpp = 32 if struct.unpack_from('<I', blob, 0x20)[0] else 24
     else:
         bpp = 32 if struct.unpack_from('<I', blob, 0x28)[0] else 24
@@ -313,7 +314,7 @@ def _save_and_report(spec, src, out, src_bytes=None, ckey=None):
     d = os.path.join(_w.out_dir, arch, var)
     os.makedirs(d, exist_ok=True)
     if _w.emit_qnt:
-        if fn.lower().endswith('.ajp'):
+        if src_bytes is not None and src_bytes[:3] == b'AJP':
             import io
             _, _, _, asec = ajp.decode(src_bytes)
             buf = io.BytesIO()
@@ -431,7 +432,7 @@ def main():
                          'PNG intermediates (repack becomes a raw copy)')
     ap.add_argument('--src-dir', default=None,
                     help='directory with pristine Rance7GM/GA.ald sources')
-    ap.add_argument('--asset-set', choices=('jp', 'vanilla'),
+    ap.add_argument('--asset-set', choices=('jp', 'vanilla', 'zh'),
                     default=None,
                     help='generate only shared + this variant payloads')
     ap.add_argument('--model', default=None, help='ONNX model path')
@@ -493,31 +494,61 @@ def main():
 
     mani = gp.load_manifest()
     order_map = {'vanilla': ['vanilla', 'jp'], 'jp': ['jp', 'vanilla'],
-                 'shared': ['jp', 'vanilla']}
-    if args.manifest:
-        # install-mode: the shipped payload dirs are not present, so
-        # payload names come from the manifest keys themselves
+                 'shared': ['jp', 'vanilla'], 'zh': ['zh']}
+    if args.asset_set == 'zh':
+        # zh build layout: GA is the live CG archive, GB holds the
+        # cg045xx set, GM is dormant. The payload set is every entry
+        # present in the live archives (it also covers the zh-only
+        # warning screens cg59001/59002 which have no manifest entry).
         entries = []
-        for key, info in sorted(mani.items()):
-            arch, var, fn = key.split('/', 2)
-            if args.only and not fn.startswith(args.only):
+        alds = ga.load_sources()
+        rec_of = {}
+        for key, info in mani.items():
+            a2, v2, f2 = key.split('/', 2)
+            # zh content matches the vanilla (all-ages) line; prefer its
+            # recipe, then shared, then jp
+            rank = {'vanilla': 0, 'shared': 1}.get(v2, 2)
+            if f2 not in rec_of or rank < rec_of[f2][0]:
+                rec_of[f2] = (rank, info.get('recipe', 'ai'))
+        seen = set()
+        for a in ga.src_arches('zh'):
+            k = ('zh', a)
+            if k not in alds:
                 continue
-            entries.append((arch, var, fn, None))
+            for fn in alds[k][2]:
+                if fn in seen:
+                    continue
+                seen.add(fn)
+                if args.only and not fn.startswith(args.only):
+                    continue
+                entries.append((a, 'zh', fn, None))
+        specs = [(a, 'zh', fn, rec_of.get(fn, (9, 'ai'))[1],
+                  order_map['zh']) for a, _v, fn, _p in entries]
     else:
-        entries = gp.iter_payloads(only=args.only)
-    specs = []
-    for arch, var, fn, path in entries:
-        if args.asset_set and var not in ('shared', args.asset_set):
-            continue
-        if args.skip_existing and (
-                os.path.exists(os.path.join(args.out, arch, var,
-                                            fn[:-4] + '.png'))
-                or os.path.exists(os.path.join(args.out, arch, var,
-                                               fn))):
-            continue
-        rec = mani.get('%s/%s/%s' % (arch, var, fn), {}).get('recipe',
-                                                             'ai')
-        specs.append((arch, var, fn, rec, order_map[var]))
+        if args.manifest:
+            # install-mode: the shipped payload dirs are not present, so
+            # payload names come from the manifest keys themselves
+            entries = []
+            for key, info in sorted(mani.items()):
+                arch, var, fn = key.split('/', 2)
+                if args.only and not fn.startswith(args.only):
+                    continue
+                entries.append((arch, var, fn, None))
+        else:
+            entries = gp.iter_payloads(only=args.only)
+        specs = []
+        for arch, var, fn, path in entries:
+            if args.asset_set and var not in ('shared', args.asset_set):
+                continue
+            if args.skip_existing and (
+                    os.path.exists(os.path.join(args.out, arch, var,
+                                                fn[:-4] + '.png'))
+                    or os.path.exists(os.path.join(args.out, arch, var,
+                                                   fn))):
+                continue
+            rec = mani.get('%s/%s/%s' % (arch, var, fn), {}).get(
+                'recipe', 'ai')
+            specs.append((arch, var, fn, rec, order_map[var]))
     if args.limit:
         specs = specs[:args.limit]
     _log('  生成対象: %d 件' % len(specs))

@@ -35,7 +35,8 @@ import numpy as np  # noqa: E402
 
 import gen_audit as ga  # noqa: E402
 
-MOVIES = ('Rance7OP.alm', 'Staff.alm')
+# movie/*.alm is globbed at run time so language-specific extras
+# (e.g. the zh build's Rance7ED.alm) are picked up automatically.
 
 
 def _sha256_file(path):
@@ -183,12 +184,12 @@ def main():
     ap.add_argument('--cache-dir', default=None)
     a = ap.parse_args()
 
-    n_gen = n_miss = 0
-    for name in MOVIES:
-        src = os.path.join(a.src_dir, 'movie', name)
-        if not os.path.exists(src):
-            n_miss += 1
-            continue
+    mov_dir = os.path.join(a.src_dir, 'movie')
+    movies = sorted(os.listdir(mov_dir)) if os.path.isdir(mov_dir) else []
+    movies = [n for n in movies if n.lower().endswith('.alm')]
+    n_gen = 0
+    for name in movies:
+        src = os.path.join(mov_dir, name)
         dst = os.path.join(a.dst_dir, name)
         ck = None
         if a.cache_dir:
@@ -216,7 +217,7 @@ def main():
                 os.replace(hit + '.tmp', hit)
             except OSError:
                 pass  # cache is an optimisation; never fail the job
-    print('  ムービー生成: %d 本 / ソースなし %d 本' % (n_gen, n_miss))
+    print('  ムービー生成: %d 本' % n_gen)
     if n_gen == 0:
         print('  （バックアップに movie/*.alm が無いため何もしませんでした）')
 

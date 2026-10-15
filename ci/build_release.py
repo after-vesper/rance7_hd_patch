@@ -34,8 +34,8 @@ def main():
     shutil.copytree(SRC, DST)
 
     n_drop = n_keep = 0
-    for arch in ('GM', 'GA'):
-        for var in ('shared', 'jp', 'vanilla'):
+    for arch in ('GM', 'GA', 'GB'):
+        for var in ('shared', 'jp', 'vanilla', 'zh'):
             d = os.path.join(DST, 'data', arch, var)
             if not os.path.isdir(d):
                 continue
@@ -48,12 +48,13 @@ def main():
     print('dropped %d payload files, kept %d manual exceptions'
           % (n_drop, n_keep))
 
-    # AliceLogo3.alk is regenerated from the user's backup at install
+    # AliceLogo*.alk is regenerated from the user's backup at install
     # time (gen/gen_alk.py); do not ship the derived archive.
-    alk = os.path.join(DST, 'data', 'files', 'AliceLogo3.alk')
-    if os.path.exists(alk):
-        os.remove(alk)
-        print('dropped data/files/AliceLogo3.alk (regenerated at install)')
+    for alk_name in ('AliceLogo3.alk', 'AliceLogo2.alk'):
+        alk = os.path.join(DST, 'data', 'files', alk_name)
+        if os.path.exists(alk):
+            os.remove(alk)
+            print('dropped data/files/%s (regenerated at install)' % alk_name)
 
     # drop interpreter caches and bundled package test suites; the
     # runtime regenerates .pyc files and none of our code imports tests

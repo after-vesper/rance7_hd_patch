@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Regenerate AliceLogo3.alk at install time from the user's original
+"""Regenerate an AliceLogo*.alk at install time from the user's original
 archive: decode each QNT entry, upscale 2x with the audited per-entry
 recipe, re-encode, and repack the ALK container.
 
@@ -68,8 +68,8 @@ def write_alk(entries, out):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--src', required=True, help='original AliceLogo3.alk')
-    ap.add_argument('--dst', required=True, help='output AliceLogo3.alk')
+    ap.add_argument('--src', required=True, help='original AliceLogo*.alk')
+    ap.add_argument('--dst', required=True, help='output AliceLogo*.alk')
     ap.add_argument('--recipes',
                     default=os.path.join(os.path.dirname(
                         os.path.abspath(__file__)), 'alk_recipes.json'))
@@ -78,6 +78,7 @@ def main():
                          '(shared with gen_ring --cache-dir)')
     a = ap.parse_args()
 
+    label = os.path.splitext(os.path.basename(a.dst))[0]
     raw = open(a.src, 'rb').read()
     ck = None
     if a.cache_dir:
@@ -89,7 +90,7 @@ def main():
                         exist_ok=True)
             with open(hit, 'rb') as f, open(a.dst, 'wb') as o:
                 o.write(f.read())
-            print('  AliceLogo3.alk: キャッシュから再利用')
+            print('  %s.alk: キャッシュから再利用' % label)
             return
 
     recipes = json.load(open(a.recipes))
@@ -102,8 +103,8 @@ def main():
     def show(i, final=False):
         frac = i / max(1, n_img)
         bar = ('#' * int(frac * 28)).ljust(28, '-')
-        line = '  AliceLogo3 [%s] %d/%d %5.1f%%' % (
-            bar, i, n_img, frac * 100.0)
+        line = '  %s [%s] %d/%d %5.1f%%' % (
+            label, bar, i, n_img, frac * 100.0)
         if is_tty:
             pad = max(0, bar_len[0] - len(line))
             bar_len[0] = len(line)
@@ -134,8 +135,8 @@ def main():
     show(n_gen, final=True)
     os.makedirs(os.path.dirname(os.path.abspath(a.dst)), exist_ok=True)
     write_alk(entries, a.dst)
-    print('  AliceLogo3.alk: 生成 %d コマ / 素通し %d / 計 %d エントリ' %
-          (n_gen, n_pass, len(entries)))
+    print('  %s.alk: 生成 %d コマ / 素通し %d / 計 %d エントリ' %
+          (label, n_gen, n_pass, len(entries)))
     if ck is not None:
         try:
             tmp = os.path.join(a.cache_dir, ck + '.tmp')

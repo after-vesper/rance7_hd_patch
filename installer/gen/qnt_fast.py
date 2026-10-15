@@ -131,7 +131,7 @@ def _diagonals(h, w):
 def decode(data):
     """QNT bytes -> (w, h, bpp, BGR(A) bytes). Byte-identical to qnt.decode."""
     magic, ver, hsz = struct.unpack_from('<4sII', data, 0)
-    if magic != b'QNT\x00' or ver != 2:
+    if magic != b'QNT\x00' or ver not in (1, 2):
         raise ValueError('unsupported QNT version')
     x, y, w, h, bpp = struct.unpack_from('<IIIII', data, 0x0C)
     psz, asz = struct.unpack_from('<II', data, 0x24)

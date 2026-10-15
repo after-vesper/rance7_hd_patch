@@ -86,15 +86,28 @@ def entry_map(data):
     return {e[3]: (e[0], e[1], e[2]) for e in ald.list_entries(data) if e[3]}
 
 
+# Archive letters considered as asset sources, in priority order per
+# asset set. jp/en ship CGs in GM(+GA); the zh build's live CG archive
+# is GA with GB holding the cg045xx set (its GM is dormant data).
+SRC_ARCHES = {
+    'zh': ('GA', 'GB', 'GM'),
+}
+SRC_ARCHES_DEFAULT = ('GM', 'GA', 'GB')
+
+
+def src_arches(aset):
+    return SRC_ARCHES.get(aset, SRC_ARCHES_DEFAULT)
+
+
 def load_sources():
     """Open source ALDs. With GEN_SRC_DIR set, loads that directory's
-    Rance7GM/GA.ald under the GEN_ASSET_SET key (install-time mode:
+    Rance7*.ald files under the GEN_ASSET_SET key (install-time mode:
     the user's backed-up pristine archives are the only source)."""
     src_dir = os.environ.get('GEN_SRC_DIR')
     if src_dir:
         aset = os.environ.get('GEN_ASSET_SET', 'jp')
         src = {}
-        for arch in ('GM', 'GA'):
+        for arch in src_arches(aset):
             p = os.path.join(src_dir, 'Rance7%s.ald' % arch)
             if os.path.exists(p):
                 src[(aset, arch)] = p
@@ -110,7 +123,7 @@ def load_sources():
 def src_payload(alds, name, variants):
     order = []
     for v in variants:
-        order += [(v, 'GM'), (v, 'GA')]
+        order += [(v, a) for a in src_arches(v)]
     for k in order:
         if k in alds and name in alds[k][2]:
             _, data, m = alds[k]
@@ -120,6 +133,10 @@ def src_payload(alds, name, variants):
 
 
 def to_img(payload):
+    # magic-based dispatch: zh has .AJP names holding QNT payloads
+    if payload[:3] == b'AJP':
+        import ajp
+        return ajp.decode_rgba(payload)
     w, h, ch, px = qnt_fast.decode(payload)
     return Image.frombytes('RGBA' if ch == 4 else 'RGB', (w, h), px,
                            'raw', 'BGRA' if ch == 4 else 'BGR')

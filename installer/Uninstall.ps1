@@ -116,21 +116,18 @@ if (-not (Test-Path (Join-Path $BackupDir 'Rance7.ain'))) {
     exit 1
 }
 
-$files = @('Rance7.ain', 'Rance7GM.ald', 'Rance7GA.ald', 'Rance7BA.ald',
-           'Rance7WA.ald', 'System40.ini', 'AliceLogo3.alk',
-           'DLL\AliceLogo3.dll',
-           'movie\Rance7OP.alm', 'movie\Staff.alm')
+# restore every file the backup holds (the set varies by build: jp/en
+# carry Rance7GM+GA and AliceLogo3.*, zh carries GA+GB, AliceLogo2.* and
+# an extra movie). Backup layout mirrors game-relative paths.
 $restored = @()
-foreach ($f in $files) {
-    $src = Join-Path $BackupDir $f
-    $dst = Join-Path $GameDir $f
-    if (Test-Path $src) {
-        New-Item -ItemType Directory -Force -Path (Split-Path $dst) |
-            Out-Null
-        Copy-Item -Force $src $dst
-        $restored += ,@($src, $dst, $f)
-        Write-Host "  復元: $f"
-    }
+Get-ChildItem $BackupDir -Recurse -File | ForEach-Object {
+    $rel = $_.FullName.Substring($BackupDir.Length).TrimStart('\', '/')
+    $dst = Join-Path $GameDir $rel
+    New-Item -ItemType Directory -Force -Path (Split-Path $dst) |
+        Out-Null
+    Copy-Item -Force $_.FullName $dst
+    $restored += ,@($_.FullName, $dst, $rel)
+    Write-Host "  復元: $rel"
 }
 
 # Delete the used backup only after every restored file verifies.

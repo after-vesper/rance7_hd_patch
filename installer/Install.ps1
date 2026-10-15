@@ -6,11 +6,12 @@
     Applies the 1600x1200 HD patch to a Sengoku Rance (Steam) install:
       * Rance7.ain   - anchor-based coordinate/layout doubling
       * Rance7GM.ald / Rance7GA.ald - HD asset payload repack
-      * AliceLogo3.alk / DLL\AliceLogo3.dll - HD logo animation
-      * movie\Rance7OP.alm / movie\Staff.alm - HD OP/ED movies
+        (zh build: Rance7GA.ald / Rance7GB.ald - its GM is dormant)
+      * AliceLogo*.alk / DLL\AliceLogo*.dll - HD logo animation
+      * movie\*.alm - HD OP/ED movies
       * System40.ini - ViewWidth/ViewHeight -> 1600x1200
-    Compatible with vanilla, JP-patched and unofficial-patch installs,
-    in any application order. Creates a timestamped backup
+    Compatible with vanilla, JP-patched, zh and unofficial-patch
+    installs, in any application order. Creates a timestamped backup
     under backup\hd_* before touching anything.
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1
@@ -181,21 +182,38 @@ $ainHash = (Sha256 $ainPath).Substring(0, 16)
 $knownAin = @{
     'B4459F0637F7E1B0' = '通常版（Steam・未改造）'
     '7CB8B11941A14007' = 'JPパッチ適用済み'
+    'BF84072AAD157812' = '中国語版（簡体字）'
 }
 $variant = $knownAin[$ainHash]
 if (-not $variant) { $variant = "改造済み/非公式パッチ版 (ain hash $ainHash)" }
 
+# Archive layouts differ by language build:
+#   jp/en: Rance7GM.ald is the live CG archive, Rance7GA.ald holds the
+#          cg045xx set and receives payloads moved out of GM
+#   zh   : Rance7GA.ald is the live CG archive and Rance7GB.ald holds
+#          cg045xx; Rance7GM.ald is a dormant duplicate (verified by
+#          runtime test - the game boots and renders without it)
 $gmPath = Join-Path $GameDir 'Rance7GM.ald'
 $gaPath = Join-Path $GameDir 'Rance7GA.ald'
-if (-not (Test-Path $gmPath)) { Fail "Rance7GM.ald が見つかりません" }
-if (-not (Test-Path $gaPath)) { Fail "Rance7GA.ald が見つかりません" }
+$gbPath = Join-Path $GameDir 'Rance7GB.ald'
+$isZh = Test-Path $gbPath
+if ($isZh) {
+    if (-not (Test-Path $gaPath)) { Fail "Rance7GA.ald が見つかりません" }
+} else {
+    if (-not (Test-Path $gmPath)) { Fail "Rance7GM.ald が見つかりません" }
+    if (-not (Test-Path $gaPath)) { Fail "Rance7GA.ald が見つかりません" }
+}
 
 # The JP patch rewrites the GM archive (R18 CGs); vanilla payloads are
 # derived from the censored sources so the asset set must match the base.
-$gmHash = (Sha256 $gmPath).Substring(0, 12)
-if ($gmHash -eq '27D55DF49209') { $assetSet = 'jp' }
-elseif ($gmHash -eq '0B20D110235A') { $assetSet = 'vanilla' }
-else { $assetSet = 'jp' }   # modified/unknown ald: jp assets were built on jp base
+if ($isZh) {
+    $assetSet = 'zh'
+} else {
+    $gmHash = (Sha256 $gmPath).Substring(0, 12)
+    if ($gmHash -eq '27D55DF49209') { $assetSet = 'jp' }
+    elseif ($gmHash -eq '0B20D110235A') { $assetSet = 'vanilla' }
+    else { $assetSet = 'jp' }   # modified/unknown ald: jp assets were built on jp base
+}
 
 Write-Host ""
 Write-Host "  対象         : $GameDir"
@@ -208,10 +226,13 @@ Write-Host ""
 # orig archives + new archives + generated intermediates + persistent
 # payload cache (~2.5 GB each) + movie originals (backed up) and the
 # ~1.4x larger HD re-encodes staged next to them
-$need = (Get-Item $gmPath).Length + (Get-Item $gaPath).Length + 8GB
-foreach ($mv in @('movie\Rance7OP.alm', 'movie\Staff.alm')) {
-    $mp = Join-Path $GameDir $mv
-    if (Test-Path $mp) { $need += (Get-Item $mp).Length * 2 }
+if ($isZh) {
+    $need = (Get-Item $gaPath).Length + (Get-Item $gbPath).Length + 8GB
+} else {
+    $need = (Get-Item $gmPath).Length + (Get-Item $gaPath).Length + 8GB
+}
+foreach ($mv in (Get-ChildItem (Join-Path $GameDir 'movie') -Filter '*.alm' -File -ErrorAction SilentlyContinue)) {
+    $need += $mv.Length * 2
 }
 $drive = (Get-Item $GameDir).PSDrive
 $free = (Get-PSDrive $drive.Name).Free
@@ -228,20 +249,24 @@ New-Item -ItemType Directory -Force -Path $bakDir | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $bakDir 'DLL') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $bakDir 'movie') | Out-Null
 
-$looseSrc = @(
-    @{ g = 'AliceLogo3.alk';        b = 'AliceLogo3.alk' },
-    @{ g = 'DLL\AliceLogo3.dll';    b = 'DLL\AliceLogo3.dll' },
-    @{ g = 'movie\Rance7OP.alm';    b = 'movie\Rance7OP.alm' },
-    @{ g = 'movie\Staff.alm';       b = 'movie\Staff.alm' }
-)
-$protected = @('Rance7.ain', 'Rance7GM.ald', 'Rance7GA.ald', 'System40.ini')
+# whatever AliceLogo*/movie files exist get backed up; the zh build
+# carries AliceLogo2.* and an extra Rance7ED.alm instead
+$protected = @('Rance7.ain', 'System40.ini')
+if ($isZh) { $protected += @('Rance7GA.ald', 'Rance7GB.ald') }
+else       { $protected += @('Rance7GM.ald', 'Rance7GA.ald') }
 foreach ($f in $protected) {
     $src = Join-Path $GameDir $f
     if (Test-Path $src) { Copy-Item $src (Join-Path $bakDir $f) }
 }
-foreach ($l in $looseSrc) {
-    $src = Join-Path $GameDir $l.g
-    if (Test-Path $src) { Copy-Item $src (Join-Path $bakDir $l.b) }
+$looseFiles = @()
+$looseFiles += Get-ChildItem $GameDir -Filter 'AliceLogo*.alk' -File -ErrorAction SilentlyContinue
+$looseFiles += Get-ChildItem (Join-Path $GameDir 'DLL') -Filter 'AliceLogo*.dll' -File -ErrorAction SilentlyContinue
+$looseFiles += Get-ChildItem (Join-Path $GameDir 'movie') -Filter '*.alm' -File -ErrorAction SilentlyContinue
+foreach ($f in $looseFiles) {
+    $rel = $f.FullName.Substring($GameDir.Length).TrimStart('\', '/')
+    $dst = Join-Path $bakDir $rel
+    New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
+    Copy-Item $f.FullName $dst
 }
 Write-Host "  バックアップ: $bakDir"
 
@@ -302,22 +327,57 @@ if ($LASTEXITCODE -ne 0) {
     Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
     Fail "アセット生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）"
 }
-# sanity: count generated payloads vs manifest (manual assets excluded)
+# sanity: count generated payloads vs expectation (manual assets excluded)
 $recipes = Get-Content (Join-Path $Root 'gen\recipe_manifest.json') -Raw |
            ConvertFrom-Json
-$want = 0
-foreach ($p in $recipes.PSObject.Properties) {
-    $parts = $p.Name -split '/'
-    if (($parts[1] -eq 'shared' -or $parts[1] -eq $assetSet) -and
-        $p.Value.recipe -ne 'manual') { $want++ }
-}
-$got = 0
-foreach ($s in @('shared', $assetSet)) {
-    foreach ($arch in @('GM', 'GA')) {
-        $d = Join-Path $genDir "$arch\$s"
+if ($isZh) {
+    # zh generates every entry of the live archives (GA + GB); recipes
+    # come from the vanilla/shared recipe map as in gen_ring
+    $zhRecipes = @{}
+    foreach ($p in $recipes.PSObject.Properties) {
+        $parts = $p.Name -split '/'
+        $rank = 9
+        if ($parts[1] -eq 'vanilla') { $rank = 0 }
+        elseif ($parts[1] -eq 'shared') { $rank = 1 }
+        if (-not $zhRecipes.ContainsKey($parts[2]) -or
+            $rank -lt $zhRecipes[$parts[2]].Rank) {
+            $zhRecipes[$parts[2]] = @{ Rank = $rank; Recipe = $p.Value.recipe }
+        }
+    }
+    $zhNames = [Collections.Generic.HashSet[string]]::new()
+    foreach ($a in @('Rance7GA.ald', 'Rance7GB.ald')) {
+        foreach ($n in [HdPatch]::ListAldNames((Join-Path $bakDir $a))) {
+            [void]$zhNames.Add($n)
+        }
+    }
+    $want = 0
+    foreach ($n in $zhNames) {
+        if (-not $zhRecipes.ContainsKey($n) -or
+            $zhRecipes[$n].Recipe -ne 'manual') { $want++ }
+    }
+    $got = 0
+    foreach ($arch in @('GA', 'GB')) {
+        $d = Join-Path $genDir "$arch\zh"
         if (Test-Path $d) {
             $got += @(Get-ChildItem $d -File |
                       Where-Object { $_.Extension -ne '.json' }).Count
+        }
+    }
+} else {
+    $want = 0
+    foreach ($p in $recipes.PSObject.Properties) {
+        $parts = $p.Name -split '/'
+        if (($parts[1] -eq 'shared' -or $parts[1] -eq $assetSet) -and
+            $p.Value.recipe -ne 'manual') { $want++ }
+    }
+    $got = 0
+    foreach ($s in @('shared', $assetSet)) {
+        foreach ($arch in @('GM', 'GA')) {
+            $d = Join-Path $genDir "$arch\$s"
+            if (Test-Path $d) {
+                $got += @(Get-ChildItem $d -File |
+                          Where-Object { $_.Extension -ne '.json' }).Count
+            }
         }
     }
 }
@@ -327,57 +387,61 @@ if ($got -lt $want) {
 }
 Write-Host "  マニフェスト照合OK（$got / $want 件）" -ForegroundColor DarkGray
 
-# AliceLogo3.* only exists when the JP patch installed the newer logo
-# plugin; vanilla Steam installs carry AliceLogo2.dll instead and have
-# no .alk at all, so every step below is conditional on the backup.
-$alkSrc = Join-Path $bakDir 'AliceLogo3.alk'
-$alkGen = Join-Path $genDir 'files\AliceLogo3.alk'
-if (Test-Path $alkSrc) {
+# AliceLogo*.alk only exists on builds with the logo plugin (jp:
+# AliceLogo3.alk, zh: AliceLogo2.alk); vanilla Steam installs carry
+# neither, so every step below is conditional on the backup.
+foreach ($alkSrc in (Get-ChildItem $bakDir -Filter 'AliceLogo*.alk' -File -ErrorAction SilentlyContinue)) {
+    $alkGen = Join-Path $genDir ('files\' + $alkSrc.Name)
     # decode each entry from the backed-up original, upscale 2x,
     # repack the ALK container (whole-output cache keyed on src bytes)
     & $pyExe (Join-Path $Root 'gen\gen_alk.py') `
-        --src $alkSrc --dst $alkGen --cache-dir $cacheDir
+        --src $alkSrc.FullName --dst $alkGen --cache-dir $cacheDir
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $alkGen)) {
         Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
-        Fail "AliceLogo3.alk の生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）"
+        Fail "$($alkSrc.Name) の生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）"
     }
-} else {
-    Write-Host "  AliceLogo3.alk は存在しないためスキップ"
 }
 
-# DLL\AliceLogo3.dll: the shipped binary is just the user's original
-# plugin with two 800x600 -> 1600x1200 constants patched (8 bytes
+# DLL\AliceLogo*.dll: the shipped binary is just the user's original
+# plugin with two 800x600 -> 1600x1200 constant pairs patched (16 bytes
 # total). Patch the backed-up copy instead of shipping the binary.
-$dllSrc = Join-Path $bakDir 'DLL\AliceLogo3.dll'
-$dllOut = Join-Path $genDir 'files\DLL\AliceLogo3.dll'
-if (Test-Path $dllSrc) {
-$dllBytes = [IO.File]::ReadAllBytes($dllSrc)
-$dllPatch = @(
-    @(0x1312,  0x0320, 0x0640), @(0x131c,  0x0258, 0x04b0),
-    @(0x20d2c, 0x0320, 0x0640), @(0x20d30, 0x0258, 0x04b0)
-)
-$dllChanged = 0
-foreach ($p in $dllPatch) {
-    $o = $p[0]
-    $cur = [BitConverter]::ToInt32($dllBytes, $o)
-    if ($cur -eq $p[1]) {
-        $v = $p[2]
-        $dllBytes[$o]   = $v -band 0xff
-        $dllBytes[$o+1] = ($v -shr 8)  -band 0xff
-        $dllBytes[$o+2] = ($v -shr 16) -band 0xff
-        $dllBytes[$o+3] = ($v -shr 24) -band 0xff
-        $dllChanged++
-    } elseif ($cur -ne $p[2]) {
-        Write-Host (("  ! AliceLogo3.dll が想定と異なります（0x{0:x}）- " +
-                     "パッチせずスキップします（ロゴは低解像度のままの可能性）") -f $o) `
-            -ForegroundColor Yellow
-    }
+$dllOffsets = @{
+    'AliceLogo3.dll' = @(
+        @(0x1312,  0x0320, 0x0640), @(0x131c,  0x0258, 0x04b0),
+        @(0x20d2c, 0x0320, 0x0640), @(0x20d30, 0x0258, 0x04b0))
+    'AliceLogo2.dll' = @(
+        @(0x11b8,  0x0320, 0x0640), @(0x11c2,  0x0258, 0x04b0),
+        @(0x1cbd4, 0x0320, 0x0640), @(0x1cbd8, 0x0258, 0x04b0))
 }
-New-Item -Force -ItemType Directory (Split-Path $dllOut) | Out-Null
-[IO.File]::WriteAllBytes($dllOut, $dllBytes)
-Write-Host "  AliceLogo3.dll に $dllChanged 箇所パッチ（800x600 -> 1600x1200）"
-} else {
-    Write-Host "  DLL\AliceLogo3.dll は存在しないためスキップ"
+foreach ($dllSrc in (Get-ChildItem (Join-Path $bakDir 'DLL') -Filter 'AliceLogo*.dll' -File -ErrorAction SilentlyContinue)) {
+    $dllOut = Join-Path $genDir ('files\DLL\' + $dllSrc.Name)
+    $patch = $dllOffsets[$dllSrc.Name]
+    if (-not $patch) {
+        Write-Host "  $($dllSrc.Name) のパッチ位置が不明のためスキップ" `
+            -ForegroundColor Yellow
+        continue
+    }
+    $dllBytes = [IO.File]::ReadAllBytes($dllSrc.FullName)
+    $dllChanged = 0
+    foreach ($p in $patch) {
+        $o = $p[0]
+        $cur = [BitConverter]::ToInt32($dllBytes, $o)
+        if ($cur -eq $p[1]) {
+            $v = $p[2]
+            $dllBytes[$o]   = $v -band 0xff
+            $dllBytes[$o+1] = ($v -shr 8)  -band 0xff
+            $dllBytes[$o+2] = ($v -shr 16) -band 0xff
+            $dllBytes[$o+3] = ($v -shr 24) -band 0xff
+            $dllChanged++
+        } elseif ($cur -ne $p[2]) {
+            Write-Host (("  ! $($dllSrc.Name) が想定と異なります（0x{0:x}）- " +
+                         "その箇所はパッチしません（ロゴは低解像度のままの可能性）") -f $o) `
+                -ForegroundColor Yellow
+        }
+    }
+    New-Item -Force -ItemType Directory (Split-Path $dllOut) | Out-Null
+    [IO.File]::WriteAllBytes($dllOut, $dllBytes)
+    Write-Host "  $($dllSrc.Name) に $dllChanged 箇所パッチ（800x600 -> 1600x1200）"
 }
 
 # movie/*.alm: regenerate the OP/ED at 1280x960 from the backed-up
@@ -449,13 +513,18 @@ Write-Host "  Rance7.ain -> HD化完了"
 $mj = Get-Content $manifest -Raw | ConvertFrom-Json
 
 function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$disk,
-                        [Collections.Generic.Dictionary[int,int[]]]$extraRows = $null) {
+                        [Collections.Generic.Dictionary[int,int[]]]$extraRows = $null,
+                        [bool]$noAppend = $false, [bool]$genOnly = $false) {
     # shipped payloads (manual exceptions) first; generated payloads last
-    # (generated wins on name collision, though there should be none)
+    # (generated wins on name collision, though there should be none).
+    # zh skips shipped payloads entirely: the jp/vanilla manual payloads
+    # carry jp-specific content that must not enter the zh archives.
     $dirs = @()
-    foreach ($s in @('shared', $assetSet)) {
-        $src = Join-Path $dataDir ("$dir\" + $s)
-        if (Test-Path $src) { $dirs += $src }
+    if (-not $genOnly) {
+        foreach ($s in @('shared', $assetSet)) {
+            $src = Join-Path $dataDir ("$dir\" + $s)
+            if (Test-Path $src) { $dirs += $src }
+        }
     }
     foreach ($s in @('shared', $assetSet)) {
         $src = Join-Path $genDir ("$dir\" + $s)
@@ -469,7 +538,7 @@ function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$
     try {
         $res = [HdPatch]::RepackAld($aldPath, $tmpAld, [string[]]$dirs,
                                     $disk, [Action[string]]$log,
-                                    $extraRows, $repackProg)
+                                    $extraRows, $repackProg, $noAppend)
     } catch {
         Remove-Item $tmpAld -ErrorAction SilentlyContinue
         Fail "$arcName の再梱包に失敗: $($_.Exception.Message) - 元のアーカイブは無傷です"
@@ -480,6 +549,93 @@ function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$
                 $arcName, $res[0], $res[1], $res[2])
 }
 
+$AldSeekLimit = 0x80000000L
+$AldTarget    = 0x7F000000L   # stop ~33 MB under the hard limit
+
+if ($isZh) {
+    # zh build: GA is the live CG archive, GB carries the cg045xx set
+    # and GM is dormant (untouched). HD payloads can push GA past the
+    # signed 32-bit seek ceiling; overflow payloads then move into GB
+    # (same live archive family, ~2 GB headroom) and GA's link table -
+    # the authoritative one in this build - gets redirect rows pointing
+    # at the appended GB entries, mirroring the jp GM->GA mechanism.
+    $gaOrigSz = [HdPatch]::AldEntrySizes((Join-Path $bakDir 'Rance7GA.ald'))
+    $gbOrigNm = [HdPatch]::ListAldNames((Join-Path $bakDir 'Rance7GB.ald'))
+    $gbOrigSet = [Collections.Generic.HashSet[string]]::new(
+        [string[]]$gbOrigNm)
+
+    # projected GA size ~= originals not overridden + staged payloads
+    # + ~176 B per entry of header/alignment padding
+    $gaPl = @{}
+    $gaStage = Join-Path $genDir 'GA\zh'
+    if (Test-Path $gaStage) {
+        foreach ($f in (Get-ChildItem $gaStage -File |
+                       Where-Object { $_.Extension -ne '.json' })) {
+            $gaPl[$f.Name] = $f.Length
+        }
+    }
+    $gaProj = 0L
+    foreach ($kv in $gaOrigSz.GetEnumerator()) {
+        if (-not $gaPl.ContainsKey($kv.Key)) { $gaProj += $kv.Value }
+    }
+    foreach ($f in ($gaPl.Keys)) { $gaProj += $gaPl[$f] }
+    $gaProj += 176L * ($gaOrigSz.Count + 64)
+    Write-Host ""
+    Write-Host ("  アーカイブ容量確認: Rance7GA.ald の完成予想は {0:N0} MB" -f ($gaProj / 1MB))
+
+    $zhRows = $null
+    if ($gaProj -gt $AldTarget) {
+        # biggest payloads first; moved names append to GB in the
+        # ordinal order RepackAld uses, so their GB indexes (and the
+        # redirect rows pointing at them) are known up front
+        $moved = [Collections.Generic.List[string]]::new()
+        $movedBytes = 0L
+        $names = $gaPl.Keys | Sort-Object { $gaPl[$_] } -Descending
+        foreach ($nm in $names) {
+            if ($gaProj -le $AldTarget) { break }
+            if ($gbOrigSet.Contains($nm)) { continue }  # name already in
+                # GB: moving it there would never be seen as an addition
+            $dstDir = Join-Path $genDir 'GB\zh'
+            New-Item -Force -ItemType Directory $dstDir | Out-Null
+            Move-Item -Force (Join-Path $gaStage $nm) `
+                (Join-Path $dstDir $nm)
+            $moved.Add($nm)
+            $orig = 0L
+            if ($gaOrigSz.ContainsKey($nm)) { $orig = $gaOrigSz[$nm] }
+            $gaProj -= ($gaPl[$nm] - $orig)
+            $movedBytes += $gaPl[$nm]
+        }
+        Write-Host ("  サイズ調整: 大きい素材 {0} 件をGAからGBへ移動（{1:N0} MB）→ GAは約{2:N0} MBに" -f $moved.Count, ($movedBytes / 1MB), ($gaProj / 1MB))
+        if ($gaProj -gt $AldTarget) {
+            Write-Host ("  ! 警告: それでもGAが安全圏を超える見込みです - " +
+                        "2GB以降の素材が表示されない可能性があります") `
+                -ForegroundColor Yellow
+        }
+        if ($moved.Count -gt 0) {
+            $sorted = $moved.ToArray()
+            [Array]::Sort($sorted, [StringComparer]::Ordinal)
+            $zhRows = New-Object 'Collections.Generic.Dictionary[int,int[]]'
+            for ($i = 0; $i -lt $sorted.Count; $i++) {
+                $digits = [int]([regex]::Match(
+                    [IO.Path]::GetFileNameWithoutExtension($sorted[$i]),
+                    '\d+').Value)
+                # fileNumber -> {disk 1 (GB), appended GB files index};
+                # parenthesize: @(a, x + i) would parse as @(a, x) + i
+                $zhRows[$digits - 1] = [int[]]@(1, ($gbOrigNm.Count + $i))
+            }
+            Write-Host ("  GBへのリンク振替: {0} 行" -f $zhRows.Count)
+        }
+    }
+
+    # GB first: its appended entries land at the indexes computed above
+    Write-Host ""
+    Write-Host "[3/5] Rance7GB.ald - HD素材を格納します ..." -ForegroundColor Cyan
+    Repack-Archive $gbPath 'Rance7GB.ald' 'GB' $mj.archives.'Rance7GB.ald'.disk $null $false $true
+    Write-Host ""
+    Write-Host "[4/5] Rance7GA.ald - HD素材を格納します（約1〜2GB） ..." -ForegroundColor Cyan
+    Repack-Archive $gaPath 'Rance7GA.ald' 'GA' $mj.archives.'Rance7GA.ald'.disk $zhRows $true $true
+} else {
+
 # ---------- archive size rebalance ----------
 # The engine seeks into .ald volumes via a signed 32-bit byte offset, so
 # entries starting at/above 0x80000000 are unreachable (they silently
@@ -488,8 +644,6 @@ function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$
 # payloads are moved into the GA payload dirs before repacking. GA has
 # plenty of headroom and the link-table redirect further down is computed
 # from whatever the GA dirs contain, so no other step needs to know.
-$AldSeekLimit = 0x80000000L
-$AldTarget    = 0x7F000000L   # stop ~33 MB under the hard limit
 $gmOrigSz = [HdPatch]::AldEntrySizes((Join-Path $bakDir 'Rance7GM.ald'))
 $gaOrigNm = [Collections.Generic.HashSet[string]]::new(
     [string[]]([HdPatch]::ListAldNames((Join-Path $bakDir 'Rance7GA.ald'))))
@@ -593,7 +747,7 @@ $movedNames = $gaPayload | Where-Object { -not $gaOrigSet.Contains($_) } |
 $movedRows = New-Object 'Collections.Generic.Dictionary[int,int[]]'
 for ($i = 0; $i -lt $movedNames.Count; $i++) {
     $digits = [int]([regex]::Match([IO.Path]::GetFileNameWithoutExtension($movedNames[$i]), '\d+').Value)
-    $movedRows[$digits - 1] = [int[]]@(0, $gaOrig.Count + $i)
+    $movedRows[$digits - 1] = [int[]]@(0, ($gaOrig.Count + $i))
 }
 Write-Host ("  GAへのリンク振替: {0} 行" -f $movedRows.Count)
 
@@ -607,10 +761,24 @@ Repack-Archive $gmPath 'Rance7GM.ald' 'GM' $mj.archives.'Rance7GM.ald'.disk $mov
 foreach ($ald in @($gaPath, $gmPath)) {
     $sz = (Get-Item $ald).Length
     if ($sz -ge $AldSeekLimit) {
-        Write-Host ("  ! 警告: {0} が {1:N0} バイト - エンジンの2GB読み取り" +
+        Write-Host (("  ! 警告: {0} が {1:N0} バイト - エンジンの2GB読み取り" +
                     "上限を超えています。末尾の素材が表示されません。" +
-                    " Uninstall.cmd で戻してからご報告ください。" -f
+                    " Uninstall.cmd で戻してからご報告ください。") -f
                     (Split-Path $ald -Leaf), $sz) -ForegroundColor Red
+    }
+}
+} # end of jp/en repack branch
+
+if ($isZh) {
+    # same signed 32-bit seek ceiling for the zh repacked pair
+    foreach ($ald in @($gaPath, $gbPath)) {
+        $sz = (Get-Item $ald).Length
+        if ($sz -ge $AldSeekLimit) {
+            Write-Host (("  ! 警告: {0} が {1:N0} バイト - エンジンの2GB読み取り" +
+                        "上限を超えています。末尾の素材が表示されません。" +
+                        " Uninstall.cmd で戻してからご報告ください。") -f
+                        (Split-Path $ald -Leaf), $sz) -ForegroundColor Red
+        }
     }
 }
 
