@@ -89,7 +89,7 @@ def main():
                         exist_ok=True)
             with open(hit, 'rb') as f, open(a.dst, 'wb') as o:
                 o.write(f.read())
-            print('alk: cache hit -> %s' % a.dst)
+            print('alk: キャッシュを再利用 -> %s' % a.dst)
             return
 
     recipes = json.load(open(a.recipes))
@@ -134,7 +134,7 @@ def main():
     show(n_gen, final=True)
     os.makedirs(os.path.dirname(os.path.abspath(a.dst)), exist_ok=True)
     write_alk(entries, a.dst)
-    print('alk: %d generated, %d passthrough, %d entries -> %s' %
+    print('alk: 生成 %d 件 / 素通し %d 件 / 計 %d エントリ -> %s' %
           (n_gen, n_pass, len(entries), a.dst))
     if ck is not None:
         try:

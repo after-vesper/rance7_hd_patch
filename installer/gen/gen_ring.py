@@ -353,12 +353,12 @@ def calibrate_batch(s, inp):
     BATCH = best_n
     prov = s.get_providers()[0] if s.get_providers() else '?'
     rate = 1.0 / best_t if best_t else 0.0
-    _log('gpu calibration: provider=%s batch=%d (%.1f tiles/s)%s'
+    _log('GPU測定: provider=%s バッチ=%d（%.1f タイル/秒）%s'
          % (prov, best_n, rate,
-            '' if best_t else ' [provider probe failed]'))
+            '' if best_t else ' [provider検出失敗]'))
     if rate and rate < 3.0:
-        _log('WARNING: inference is very slow (CPU-only path?); '
-             'full generation may take hours on this machine')
+        _log('警告: 推論がかなり遅いようです（CPU実行？）。'
+             'このPCでは生成にかなり時間がかかる見込みです')
     return BATCH
 
 
@@ -445,8 +445,8 @@ def main():
             mem_cap = max(2, avail // 500)
             if mem_cap < args.workers:
                 args.workers = mem_cap
-                print('workers capped at %d by available commit '
-                      '(%d MB free)' % (args.workers, avail),
+                print('空きメモリの都合でワーカー数を %d に制限します'
+                      '（空き %d MB）' % (args.workers, avail),
                       flush=True)
     # export install-mode settings before spawning workers (spawned
     # processes re-import modules and pick these up from the env)
@@ -473,8 +473,8 @@ def main():
         if ga.MODEL and os.path.exists(ga.MODEL):
             tag += ':' + _sha256_file(ga.MODEL)
         os.environ['GEN_CACHE_TAG'] = tag
-        _log('payload cache: %s' % cache_dir)
-    _log('workers=%d' % args.workers)
+        _log('素材キャッシュ: %s' % cache_dir)
+    _log('並列ワーカー: %d' % args.workers)
 
     mani = gp.load_manifest()
     order_map = {'vanilla': ['vanilla', 'jp'], 'jp': ['jp', 'vanilla'],
@@ -505,7 +505,7 @@ def main():
         specs.append((arch, var, fn, rec, order_map[var]))
     if args.limit:
         specs = specs[:args.limit]
-    _log('%d payloads to generate' % len(specs))
+    _log('生成対象: %d 件のHD素材' % len(specs))
 
     ctx = mp.get_context('spawn')
     job_q = ctx.Queue()
@@ -601,10 +601,10 @@ def main():
     show_progress(final=True)
     el = time.time() - t_gpu
     if n_tiles:
-        _log('gpu: %d tiles in %.1fs (%.1f tiles/s)'
+        _log('GPU: %d タイル / %.1f秒（%.1f タイル/秒）'
              % (n_tiles, el, n_tiles / el))
     if stage_ms and os.environ.get('GEN_STATS'):
-        _log('stage ms/img (worker-total): ' + ', '.join(
+        _log('ステージ時間 ms/件（ワーカー合計）: ' + ', '.join(
             '%s=%.0f' % (k, v / max(1, expect))
             for k, v in sorted(stage_ms.items())))
 
@@ -616,7 +616,7 @@ def main():
             json.dump(m, f, ensure_ascii=False, indent=1)
     hits = sum(1 for m in meta.values() for i in m.values()
                if i.get('cache'))
-    _log('done: %d generated (%d cache hits), %d errors -> %s'
+    _log('完了: %d 件生成（うちキャッシュ再利用 %d 件）、エラー %d 件 -> %s'
          % (n_done, hits, n_err, args.out))
 
 

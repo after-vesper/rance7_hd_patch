@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
     Sengoku Rance HD patch installer - plain Windows, no extra tools needed.
@@ -23,14 +23,22 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+Write-Host ""
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host "   戦国ランス HDパッチ インストーラー" -ForegroundColor Cyan
+Write-Host "   ― 1600x1200へ、画面の天下布武 ―" -ForegroundColor Cyan
+Write-Host "   （アリスソフト非公式のファン制作パッチです）" -ForegroundColor Cyan
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host ""
+
 function Fail([string]$msg) {
     Write-Host ""
-    Write-Host "ERROR: $msg" -ForegroundColor Red
+    Write-Host "  エラー: $msg" -ForegroundColor Red
     # drop generation intermediates if the directory was created
     if ($genDir -and (Test-Path $genDir)) {
         Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
     }
-    if ($Elevated) { Read-Host "Press Enter to close" | Out-Null }
+    if ($Elevated) { Read-Host "Enterキーを押して閉じてください" | Out-Null }
     exit 1
 }
 
@@ -86,21 +94,20 @@ $dataDir  = Join-Path $Root 'data'
 $manifest = Join-Path $dataDir 'manifest.json'
 $sites    = Join-Path $dataDir 'hd_sites.json'
 foreach ($req in @($aliceExe, $csPath, $manifest, $sites)) {
-    if (-not (Test-Path $req)) { Fail "missing installer file: $req" }
+    if (-not (Test-Path $req)) { Fail "インストーラーのファイルが不足しています: $req" }
 }
 
 # ---------- locate the game ----------
 
 if (-not $GameDir) {
-    Write-Host "Sengoku Rance HD patch installer" -ForegroundColor Cyan
-    Write-Host ""
     $GameDir = Find-SteamGame '3867170'
     if ($GameDir) {
-        Write-Host "Detected install: $GameDir" -ForegroundColor Green
+        Write-Host "  居城発見（Steamインストール先）: $GameDir" -ForegroundColor Green
         Write-Host ""
     } else {
-        Write-Host "Steam auto-detection failed." -ForegroundColor Yellow
-        $GameDir = Read-Host "Path to the Sengoku Rance install folder (contains Rance7.exe)"
+        Write-Host "  Steamからの自動検出に失敗しました。情報網も完璧ではないようです。" `
+            -ForegroundColor Yellow
+        $GameDir = Read-Host "  戦国ランスのインストールフォルダを入力してください（Rance7.exe がある場所）"
     }
 }
 $GameDir = $GameDir.Trim().Trim('"').TrimEnd('\', '/')
@@ -110,7 +117,9 @@ $probe = Join-Path $GameDir (".hd_write_test_" + [guid]::NewGuid().ToString('N')
 try {
     [IO.File]::WriteAllText($probe, 'x'); Remove-Item $probe -Force
 } catch {
-    Write-Host "No write access to '$GameDir' - requesting administrator rights..." `
+    Write-Host "  書き込み権限が足りません。管理者権限でやり直します" `
+        -ForegroundColor Yellow
+    Write-Host "  （天下取りに権力はつきものです）..." `
         -ForegroundColor Yellow
     $args = @('-NoProfile', '-ExecutionPolicy', 'Bypass',
               '-File', "`"$PSCommandPath`"",
@@ -120,11 +129,11 @@ try {
 }
 $ainPath = Join-Path $GameDir 'Rance7.ain'
 $iniPath = Join-Path $GameDir 'System40.ini'
-if (-not (Test-Path $ainPath)) { Fail "Rance7.ain not found in '$GameDir'" }
-if (-not (Test-Path $iniPath)) { Fail "System40.ini not found in '$GameDir'" }
+if (-not (Test-Path $ainPath)) { Fail "Rance7.ain が見つかりません: '$GameDir'" }
+if (-not (Test-Path $iniPath)) { Fail "System40.ini が見つかりません: '$GameDir'" }
 
 if (Get-Process -Name Rance7 -ErrorAction SilentlyContinue) {
-    Fail "Rance7.exe is running - close the game first."
+    Fail "Rance7.exe が起動中です。先にゲームを閉じてください（ランスには待ってもらいましょう）。"
 }
 
 # ---------- interrupted / already-installed guard ----------
@@ -138,12 +147,26 @@ $statePath = Join-Path $GameDir 'hd_patch.state'
 if (Test-Path $statePath) {
     $prev = (Get-Content $statePath -Raw -ErrorAction SilentlyContinue)
     if ($prev -match 'in-progress') {
-        Fail ("a previous install was interrupted while files were " +
-              "being replaced.`nRun Uninstall.ps1 to restore the backup " +
-              "first, then re-run the installer.")
+        Fail ("前回のインストールがファイル置き換えの途中で中断しています。`n" +
+              "先に Uninstall.cmd でバックアップから復旧してから、やり直してください。")
     }
-    Fail ("the HD patch is already applied to this install.`n" +
-          "Run Uninstall.ps1 first if you want to revert it.")
+    # a Steam reinstall leaves hd_patch.state behind while restoring
+    # pristine files - detect it via System40.ini before refusing.
+    # ('in-progress' above is handled first: the ini is written last,
+    # so an interrupted run would look pristine here yet still need a
+    # restore to avoid double-upscaling already-HD archives)
+    $iniNow = [Text.Encoding]::GetEncoding(932).GetString(
+        [IO.File]::ReadAllBytes($iniPath))
+    if ($iniNow -notmatch '(?m)^ViewWidth\s*=\s*1600') {
+        Write-Host "  状態ファイルは残っていますが、ゲームファイルは素の状態です" `
+            -ForegroundColor Yellow
+        Write-Host "  （Steam再インストール等で上書きされたようです）。続行します。" `
+            -ForegroundColor Yellow
+        Remove-Item -Force $statePath -ErrorAction SilentlyContinue
+    } else {
+        Fail ("このゲームには既にHDパッチが適用済みです。`n" +
+              "元に戻したい場合は先に Uninstall.cmd を実行してください。")
+    }
 }
 
 # Stale intermediates from an interrupted generation run (never reached
@@ -159,16 +182,16 @@ Get-ChildItem $GameDir -File -Filter '*.hdtmp' `
 
 $ainHash = (Sha256 $ainPath).Substring(0, 16)
 $knownAin = @{
-    'B4459F0637F7E1B0' = 'vanilla (Steam, unmodified)'
-    '7CB8B11941A14007' = 'JP patch applied'
+    'B4459F0637F7E1B0' = '通常版（Steam・未改造）'
+    '7CB8B11941A14007' = 'JPパッチ適用済み'
 }
 $variant = $knownAin[$ainHash]
-if (-not $variant) { $variant = "modified or unofficial-patch build (ain hash $ainHash)" }
+if (-not $variant) { $variant = "改造済み/非公式パッチ版 (ain hash $ainHash)" }
 
 $gmPath = Join-Path $GameDir 'Rance7GM.ald'
 $gaPath = Join-Path $GameDir 'Rance7GA.ald'
-if (-not (Test-Path $gmPath)) { Fail "Rance7GM.ald not found" }
-if (-not (Test-Path $gaPath)) { Fail "Rance7GA.ald not found" }
+if (-not (Test-Path $gmPath)) { Fail "Rance7GM.ald が見つかりません" }
+if (-not (Test-Path $gaPath)) { Fail "Rance7GA.ald が見つかりません" }
 
 # The JP patch rewrites the GM archive (R18 CGs); vanilla payloads are
 # derived from the censored sources so the asset set must match the base.
@@ -178,9 +201,9 @@ elseif ($gmHash -eq '0B20D110235A') { $assetSet = 'vanilla' }
 else { $assetSet = 'jp' }   # modified/unknown ald: jp assets were built on jp base
 
 Write-Host ""
-Write-Host "Target     : $GameDir"
-Write-Host "AIN variant: $variant"
-Write-Host "Asset set  : $assetSet"
+Write-Host "  対象         : $GameDir"
+Write-Host "  AINバリアント: $variant"
+Write-Host "  素材セット   : $assetSet"
 Write-Host ""
 
 # ---------- free space check (repack needs orig + new archive) ----------
@@ -191,7 +214,8 @@ $need = (Get-Item $gmPath).Length + (Get-Item $gaPath).Length + 8GB
 $drive = (Get-Item $GameDir).PSDrive
 $free = (Get-PSDrive $drive.Name).Free
 if ($free -lt $need) {
-    Fail ("not enough free space on drive {0}: need ~{1:N1} GB, have {2:N1} GB" -f
+    Fail ("ドライブ {0}: の空き容量が足りません - 必要 ~{1:N1} GB / 空き {2:N1} GB`n" +
+          "大画面は大食いです。少しお掃除してからどうぞ。" -f
           $drive.Name, ($need / 1GB), ($free / 1GB))
 }
 
@@ -215,7 +239,7 @@ foreach ($l in $looseSrc) {
     $src = Join-Path $GameDir $l.g
     if (Test-Path $src) { Copy-Item $src (Join-Path $bakDir $l.b) }
 }
-Write-Host "Backup     : $bakDir"
+Write-Host "  バックアップ: $bakDir"
 
 # ---------- compile patch engine ----------
 
@@ -254,12 +278,12 @@ $pyExe   = Join-Path $Root 'runtime\python.exe'
 $genDir  = Join-Path $GameDir "hd_gen_$stamp"
 $cacheDir = Join-Path $GameDir 'hd_cache'
 $expect  = @{}
-if (-not (Test-Path $pyExe)) { Fail "missing installer file: $pyExe" }
+if (-not (Test-Path $pyExe)) { Fail "インストーラーのファイルが不足しています: $pyExe" }
 
 Write-Host ""
-Write-Host "[1/5] Generating HD assets from your game data ..."
-Write-Host "      (AI upscaling; a few minutes with a DirectML-capable GPU,"
-Write-Host "       faster on re-install thanks to the payload cache)"
+Write-Host "[1/5] 兵力動員：ゲーム内画像からHD素材を生成します ..." -ForegroundColor Cyan
+Write-Host "      AIアップスケールで全画像を2倍に解像度化（兵力6,612）"
+Write-Host "      DirectML対応GPUなら数分、再インストール時はキャッシュで一瞬です"
 $pyArgs = @(
     (Join-Path $Root 'gen\gen_ring.py'),
     '--emit-qnt',
@@ -273,7 +297,7 @@ $pyArgs = @(
 & $pyExe $pyArgs
 if ($LASTEXITCODE -ne 0) {
     Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
-    Fail "asset generation failed - nothing was modified (backup: $bakDir)"
+    Fail "アセット生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）"
 }
 # sanity: count generated payloads vs manifest (manual assets excluded)
 $recipes = Get-Content (Join-Path $Root 'gen\recipe_manifest.json') -Raw |
@@ -296,9 +320,9 @@ foreach ($s in @('shared', $assetSet)) {
 }
 if ($got -lt $want) {
     Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
-    Fail "asset generation incomplete: $got/$want payloads - nothing was modified"
+    Fail "アセット生成が途中で止まりました（$got/$want）- ゲームファイルは無傷です"
 }
-Write-Host "  generated $got payloads -> $genDir"
+Write-Host "  $got 件のHD素材が揃いました"
 
 # AliceLogo3.* only exists when the JP patch installed the newer logo
 # plugin; vanilla Steam installs carry AliceLogo2.dll instead and have
@@ -312,11 +336,11 @@ if (Test-Path $alkSrc) {
         --src $alkSrc --dst $alkGen --cache-dir $cacheDir
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $alkGen)) {
         Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
-        Fail "AliceLogo3 generation failed - nothing was modified (backup: $bakDir)"
+        Fail "AliceLogo3.alk の生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）"
     }
-    Write-Host "  AliceLogo3.alk regenerated (80 frames upscaled)"
+    Write-Host "  AliceLogo3.alk も80コマHD化（起動演出まで抜かりなし）"
 } else {
-    Write-Host "  AliceLogo3.alk not present in this install - skipped"
+    Write-Host "  AliceLogo3.alk は存在しないためスキップ"
 }
 
 # DLL\AliceLogo3.dll: the shipped binary is just the user's original
@@ -342,16 +366,16 @@ foreach ($p in $dllPatch) {
         $dllBytes[$o+3] = ($v -shr 24) -band 0xff
         $dllChanged++
     } elseif ($cur -ne $p[2]) {
-        Write-Host (("  ! AliceLogo3.dll differs at 0x{0:x} - leaving" +
-                     " it unpatched (logo may render at low res)") -f $o) `
+        Write-Host (("  ! AliceLogo3.dll が想定と異なります（0x{0:x}）- " +
+                     "無理に触らず未パッチのままにします（ロゴは低解像度のままかも）") -f $o) `
             -ForegroundColor Yellow
     }
 }
 New-Item -Force -ItemType Directory (Split-Path $dllOut) | Out-Null
 [IO.File]::WriteAllBytes($dllOut, $dllBytes)
-Write-Host "  AliceLogo3.dll patched ($dllChanged sites, 800x600 -> 1600x1200)"
+Write-Host "  AliceLogo3.dll に $dllChanged 箇所パッチ（800x600 -> 1600x1200）"
 } else {
-    Write-Host "  DLL\AliceLogo3.dll not present in this install - skipped"
+    Write-Host "  DLL\AliceLogo3.dll は存在しないためスキップ"
 }
 
 # ---------- AIN patch ----------
@@ -361,23 +385,23 @@ Write-Host "  AliceLogo3.dll patched ($dllChanged sites, 800x600 -> 1600x1200)"
 [IO.File]::WriteAllText($statePath, "in-progress; backup=$bakDir")
 
 Write-Host ""
-Write-Host "[2/5] Patching Rance7.ain (anchor resolution) ..."
+Write-Host "[2/5] 作戦書の改訂：Rance7.ain にパッチを適用 ..." -ForegroundColor Cyan
 $tmpAin = Join-Path $GameDir 'Rance7.ain.hdtmp'
 try {
     $r = [HdPatch]::ApplyAinPatch($ainPath, $tmpAin, $sites, $aliceExe,
                                   [Action[string]]$log)
 } catch {
     Remove-Item $tmpAin -ErrorAction SilentlyContinue
-    Fail "AIN patch failed: $($_.Exception.Message)`nOriginal files untouched (backup: $bakDir)"
+    Fail "AINパッチに失敗しました: $($_.Exception.Message)`n元のファイルは無傷です（バックアップ: $bakDir）"
 }
-Write-Host ("  sites: resolved={0} already={1} relaxed={2} ambiguous={3} missing_funcs={4}" -f
+Write-Host ("  パッチ箇所: 解決={0} 適用済={1} 緩和={2} 曖昧={3} 関数欠落={4}" -f
             $r.Ok, $r.AlreadyPatched, $r.Relaxed, $r.Ambiguous, $r.MissingFunc)
 if ($r.Writes -eq 0 -and $r.AlreadyPatched -eq 0) {
     Remove-Item $tmpAin -ErrorAction SilentlyContinue
-    Fail "no patch sites resolved - this AIN is not compatible.`nProblems:`n  $($r.Problems -join "`n  ")"
+    Fail "パッチ対象が見つかりませんでした - このAINには適用できません。`n詳細:`n  $($r.Problems -join "`n  ")"
 }
 if ($r.Ambiguous -gt 0 -or $r.MissingFunc -gt 0) {
-    Write-Host "  (non-fatal problems; first few:)" -ForegroundColor Yellow
+    Write-Host "  （致命的ではない問題があります。先頭の数件:）" -ForegroundColor Yellow
     $r.Problems | Select-Object -First 8 | ForEach-Object { Write-Host "    ! $_" }
 }
 # sanity check the produced AIN parses
@@ -387,10 +411,10 @@ $ok = ($LASTEXITCODE -eq 0)
 Remove-Item $verifyJam -ErrorAction SilentlyContinue
 if (-not $ok) {
     Remove-Item $tmpAin -ErrorAction SilentlyContinue
-    Fail "patched AIN failed alice-tools validation - aborted, original untouched"
+    Fail "パッチ後のAINが検証を通りませんでした - 中止します（元のファイルは無傷です）"
 }
 Move-Item -Force $tmpAin $ainPath
-Write-Host "  Rance7.ain -> HD patched"
+Write-Host "  Rance7.ain -> HD化完了"
 
 # ---------- asset payload ----------
 
@@ -409,8 +433,8 @@ function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$
         $src = Join-Path $genDir ("$dir\" + $s)
         if (Test-Path $src) { $dirs += $src }
     }
-    if ($dirs.Count -eq 0) { Fail "no payload set found for $arcName" }
-    Write-Host ("  {0}: {1} payload files" -f $arcName,
+    if ($dirs.Count -eq 0) { Fail "$arcName 用の素材が見つかりません" }
+    Write-Host ("  {0}: 格納する素材 {1} ファイル" -f $arcName,
                 (($dirs | ForEach-Object { (Get-ChildItem $_).Count }) |
                  Measure-Object -Sum).Sum)
     $tmpAld = "$aldPath.hdtmp"
@@ -420,11 +444,11 @@ function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$
                                     $extraRows, $repackProg)
     } catch {
         Remove-Item $tmpAld -ErrorAction SilentlyContinue
-        Fail "repack of $arcName failed: $($_.Exception.Message) - original archive untouched"
+        Fail "$arcName の再梱包に失敗: $($_.Exception.Message) - 元のアーカイブは無傷です"
     }
     & $clearBar
     Move-Item -Force $tmpAld $aldPath
-    Write-Host ("  {0}: {1} files ({2} overridden, {3} added)" -f
+    Write-Host ("  {0}: 計{1}件（上書き {2} / 追加 {3}）" -f
                 $arcName, $res[0], $res[1], $res[2])
 }
 
@@ -462,7 +486,7 @@ foreach ($kv in $gmOrigSz.GetEnumerator()) {
 }
 foreach ($f in ($gmPl.Keys)) { $gmProj += $gmPl[$f] }
 $gmProj += 176L * ($gmOrigSz.Count + 64)
-Write-Host ("  projected Rance7GM.ald size: {0:N0} MB" -f ($gmProj / 1MB))
+Write-Host ("  Rance7GM.ald の完成予想サイズ: {0:N0} MB" -f ($gmProj / 1MB))
 
 if ($gmProj -gt $AldTarget) {
     # biggest payloads first; move every staged copy of the name
@@ -505,10 +529,10 @@ if ($gmProj -gt $AldTarget) {
         $moved++
         $movedBytes += $byName[$nm].Size
     }
-    Write-Host ("  rebalanced: moved {0} payloads GM -> GA ({1:N0} MB), GM now ~{2:N0} MB" -f $moved, ($movedBytes / 1MB), ($gmProj / 1MB))
+    Write-Host ("  兵站調整: 大きい素材 {0} 件をGMからGAへ移動（{1:N0} MB）→ GMは約{2:N0} MBに" -f $moved, ($movedBytes / 1MB), ($gmProj / 1MB))
     if ($gmProj -gt $AldTarget) {
-        Write-Host ("  ! WARNING: projected GM still above the safe" +
-                    " threshold - entries past 2 GB may not render") `
+        Write-Host ("  ! 警告: それでもGMが安全圏を超える見込みです - " +
+                    "2GB以降の素材が表示されない可能性があります") `
             -ForegroundColor Yellow
     }
 }
@@ -517,7 +541,7 @@ if ($gmProj -gt $AldTarget) {
 # HD set, so every archive's global link table must point the moved file
 # numbers at their new GA positions.
 Write-Host ""
-Write-Host "[3/5] Rance7GA.ald - applying HD assets ..."
+Write-Host "[3/5] Rance7GA.ald - HD素材を格納します ..." -ForegroundColor Cyan
 Repack-Archive $gaPath 'Rance7GA.ald' 'GA' $mj.archives.'Rance7GA.ald'.disk
 
 # Compute the moved-file link rows: names now in GA payloads that the
@@ -542,10 +566,10 @@ for ($i = 0; $i -lt $movedNames.Count; $i++) {
     $digits = [int]([regex]::Match([IO.Path]::GetFileNameWithoutExtension($movedNames[$i]), '\d+').Value)
     $movedRows[$digits - 1] = [int[]]@(0, $gaOrig.Count + $i)
 }
-Write-Host ("  link rows redirected to GA: {0}" -f $movedRows.Count)
+Write-Host ("  GAへのリンク振替: {0} 行" -f $movedRows.Count)
 
 Write-Host ""
-Write-Host "[4/5] Rance7GM.ald - applying HD assets (this copies ~1-2 GB) ..."
+Write-Host "[4/5] Rance7GM.ald - HD素材を格納します（約1〜2GBの大仕事） ..." -ForegroundColor Cyan
 Repack-Archive $gmPath 'Rance7GM.ald' 'GM' $mj.archives.'Rance7GM.ald'.disk $movedRows
 
 # hard ceiling check: the engine's signed 32-bit seek cannot reach
@@ -554,9 +578,9 @@ Repack-Archive $gmPath 'Rance7GM.ald' 'GM' $mj.archives.'Rance7GM.ald'.disk $mov
 foreach ($ald in @($gaPath, $gmPath)) {
     $sz = (Get-Item $ald).Length
     if ($sz -ge $AldSeekLimit) {
-        Write-Host ("  ! WARNING: {0} is {1:N0} bytes - over the engine's" +
-                    " 2 GB read limit; its tail entries will not render." +
-                    " Uninstall and report this." -f
+        Write-Host ("  ! 警告: {0} が {1:N0} バイト - エンジンの2GB読み取り" +
+                    "上限を超えています。末尾の素材が表示されません。" +
+                    " Uninstall.cmd で戻してからご報告ください。" -f
                     (Split-Path $ald -Leaf), $sz) -ForegroundColor Red
     }
 }
@@ -576,20 +600,20 @@ foreach ($f in $mj.files) {
         # payload not generated AND the file is not part of this
         # install (e.g. AliceLogo3.* on vanilla) - nothing to do
         if (-not (Test-Path (Join-Path $GameDir $f.dst))) {
-            Write-Host "  $($f.dst) -> skipped (not part of this install)"
+            Write-Host "  $($f.dst) -> スキップ（この環境には存在しないファイル）"
             continue
         }
-        Fail "missing file payload: $($f.src)"
+        Fail "素材が見つかりません: $($f.src)"
     }
     $dst = Join-Path $GameDir $f.dst
     Copy-Item -Force $src $dst
-    Write-Host "  $($f.dst) -> replaced"
+    Write-Host "  $($f.dst) -> 差し替え完了"
 }
 
 # ---------- System40.ini ----------
 
 Write-Host ""
-Write-Host "[5/5] System40.ini - 1600x1200 ..."
+Write-Host "[5/5] System40.ini - 最終調整：表示を1600x1200へ ..." -ForegroundColor Cyan
 # read/write as raw bytes via cp932 so no encoding conversion can corrupt
 # unrelated settings
 $enc932 = [Text.Encoding]::GetEncoding(932)
@@ -604,7 +628,11 @@ Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
 [IO.File]::WriteAllText($statePath, "installed; backup=$bakDir")
 
 Write-Host ""
-Write-Host "=== HD patch applied ===" -ForegroundColor Green
-Write-Host "Backup: $bakDir"
-Write-Host "To revert, run Uninstall.ps1 and pick this backup folder."
-if ($Elevated) { Read-Host "Press Enter to close" | Out-Null }
+Write-Host "  ============================================================" -ForegroundColor Green
+Write-Host "   天下統一……ではなく、HDパッチの適用が完了しました。" -ForegroundColor Green
+Write-Host "   あとは1600x1200のJAPANを制覇するだけです。がんばって。" -ForegroundColor Green
+Write-Host "  ============================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "  バックアップ: $bakDir"
+Write-Host "  元に戻したいときは Uninstall.cmd を実行してください。"
+if ($Elevated) { Read-Host "Enterキーを押して閉じてください" | Out-Null }

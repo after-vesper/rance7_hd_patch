@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
     Restore the most recent HD-patch backup created by Install.ps1.
@@ -13,6 +13,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+Write-Host ""
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host "   戦国ランス HDパッチ アンインストーラー" -ForegroundColor Cyan
+Write-Host "   ― 800x600の日常へ、お帰りなさい ―" -ForegroundColor Cyan
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host ""
 
 # Same Steam auto-detection as Install.ps1.
 function Find-SteamGame([string]$appId) {
@@ -54,9 +61,9 @@ function Find-SteamGame([string]$appId) {
 if (-not $GameDir) {
     $GameDir = Find-SteamGame '3867170'
     if ($GameDir) {
-        Write-Host "Detected install: $GameDir" -ForegroundColor Green
+        Write-Host "  居城発見（Steamインストール先）: $GameDir" -ForegroundColor Green
     } else {
-        $GameDir = Read-Host "Path to the Sengoku Rance install folder"
+        $GameDir = Read-Host "  戦国ランスのインストールフォルダを入力してください"
     }
 }
 $GameDir = $GameDir.Trim().Trim('"').TrimEnd('\', '/')
@@ -66,7 +73,7 @@ $probe = Join-Path $GameDir (".hd_write_test_" + [guid]::NewGuid().ToString('N')
 try {
     [IO.File]::WriteAllText($probe, 'x'); Remove-Item $probe -Force
 } catch {
-    Write-Host "No write access to '$GameDir' - requesting administrator rights..." `
+    Write-Host "  書き込み権限が足りません。管理者権限でやり直します..." `
         -ForegroundColor Yellow
     $args = @('-NoProfile', '-ExecutionPolicy', 'Bypass',
               '-File', "`"$PSCommandPath`"",
@@ -78,11 +85,12 @@ try {
 }
 
 if (-not (Test-Path (Join-Path $GameDir 'Rance7.ain'))) {
-    Write-Host "ERROR: Rance7.ain not found in '$GameDir'" -ForegroundColor Red
+    Write-Host "  エラー: Rance7.ain が見つかりません: '$GameDir'" -ForegroundColor Red
     exit 1
 }
 if (Get-Process -Name Rance7 -ErrorAction SilentlyContinue) {
-    Write-Host "ERROR: Rance7.exe is running - close the game first." -ForegroundColor Red
+    Write-Host "  エラー: Rance7.exe が起動中です。先にゲームを閉じてください。" `
+        -ForegroundColor Red
     exit 1
 }
 
@@ -90,20 +98,22 @@ if (-not $BackupDir) {
     $backs = Get-ChildItem (Join-Path $GameDir 'backup') -Directory -Filter 'hd_*' -ErrorAction SilentlyContinue |
              Sort-Object Name -Descending
     if (-not $backs) {
-        Write-Host "ERROR: no backup\hd_* folder found." -ForegroundColor Red
+        Write-Host "  エラー: backup\hd_* のバックアップが見つかりません。" `
+            -ForegroundColor Red
         exit 1
     }
-    Write-Host "Available backups:"
+    Write-Host "  見つかったバックアップ:"
     for ($i = 0; $i -lt $backs.Count; $i++) {
-        Write-Host ("  [{0}] {1}" -f $i, $backs[$i].Name)
+        Write-Host ("    [{0}] {1}" -f $i, $backs[$i].Name)
     }
-    $sel = Read-Host "Backup index to restore (default 0 = newest)"
+    $sel = Read-Host "  復元する番号を入力（未入力 = 0 = 最新）"
     if ($sel -eq '') { $sel = '0' }
     $BackupDir = $backs[[int]$sel].FullName
 }
 
 if (-not (Test-Path (Join-Path $BackupDir 'Rance7.ain'))) {
-    Write-Host "ERROR: '$BackupDir' does not look like an HD patch backup." -ForegroundColor Red
+    Write-Host "  エラー: '$BackupDir' はHDパッチのバックアップではないようです。" `
+        -ForegroundColor Red
     exit 1
 }
 
@@ -117,7 +127,7 @@ foreach ($f in $files) {
     if (Test-Path $src) {
         Copy-Item -Force $src $dst
         $restored += ,@($src, $dst, $f)
-        Write-Host "restored $f"
+        Write-Host "  復元: $f"
     }
 }
 
@@ -129,12 +139,12 @@ foreach ($r in $restored) {
     }
 }
 if ($bad) {
-    Write-Host "WARNING: verification failed for: $($bad -join ', ')" `
+    Write-Host "  警告: 復元の検証に失敗しました: $($bad -join ', ')" `
         -ForegroundColor Yellow
-    Write-Host "Backup '$BackupDir' was kept." -ForegroundColor Yellow
+    Write-Host "  念のためバックアップ '$BackupDir' は残してあります。" -ForegroundColor Yellow
 } else {
     Remove-Item -Recurse -Force $BackupDir
-    Write-Host "Verified; removed used backup '$BackupDir'." -ForegroundColor DarkGray
+    Write-Host "  検証OK。使用済みバックアップを削除しました: '$BackupDir'" -ForegroundColor DarkGray
     # originals verified: clear the install-state marker so Install.ps1
     # can run again
     Remove-Item -Force (Join-Path $GameDir 'hd_patch.state') `
@@ -156,20 +166,22 @@ if (Test-Path $cacheDir) {
     $sz = [math]::Round(
         ((Get-ChildItem $cacheDir -Recurse -File -ErrorAction SilentlyContinue |
           Measure-Object Length -Sum).Sum / 1GB), 1)
-    $ans = Read-Host ("Delete the payload cache 'hd_cache' ({0} GB)? " +
-                      "Keeping it makes re-installs much faster [y/N]" -f $sz)
+    $ans = Read-Host ("  HDキャッシュ 'hd_cache'（{0} GB）を削除しますか？ " +
+                      "残すと再インストールが一瞬です [y/N]" -f $sz)
     if ($ans -match '^(y|yes)$') {
         Remove-Item -Recurse -Force $cacheDir -ErrorAction SilentlyContinue
         if (Test-Path $cacheDir) {
-            Write-Host "WARNING: could not fully remove '$cacheDir'." `
+            Write-Host "  警告: '$cacheDir' を完全に削除できませんでした。" `
                 -ForegroundColor Yellow
         } else {
-            Write-Host "removed hd_cache" -ForegroundColor DarkGray
+            Write-Host "  hd_cache を削除しました" -ForegroundColor DarkGray
         }
     } else {
-        Write-Host "kept hd_cache (re-install will reuse it)" `
+        Write-Host "  hd_cache は残しました（再インストール時に再利用されます）" `
             -ForegroundColor DarkGray
     }
 }
 Write-Host ""
-Write-Host "=== Restored from backup ===" -ForegroundColor Green
+Write-Host "  ============================================================" -ForegroundColor Green
+Write-Host "   元の姿に戻りました。また広い画面でお会いしましょう。" -ForegroundColor Green
+Write-Host "  ============================================================" -ForegroundColor Green
