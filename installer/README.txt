@@ -61,7 +61,7 @@ Steam版「戦国ランス」の表示を 800x600 から 1600x1200 の
 ------------------------------------------------------------
 
  * アップスケーリングモデル:
-   AnimeJaNai V2 SuperUltraCompact（CC BY-NC-SA 4.0）
+   AnimeJaNai HD v3 Sharp1 UltraCompact（CC BY-NC-SA 4.0）
    詳細は LICENSES\model.txt をご覧ください
  * alice-tools（GPL）: bin\alice.exe
    詳細は LICENSES\ 内をご覧ください

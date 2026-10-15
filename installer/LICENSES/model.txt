@@ -1,8 +1,8 @@
-Upscale model: AnimeJaNai v2 SuperUltraCompact (fp16/clamp ONNX
-               conversion of 2x_AnimeJaNai_V2_SuperUltraCompact_100k)
+Upscale model: AnimeJaNai HD v3 Sharp1 UltraCompact (fp16/clamp ONNX
+               conversion of 2x_AnimeJaNai_HD_V3_Sharp1_UltraCompact_425k)
 Author: the-database
-Source: https://openmodeldb.info/models/2x-AnimeJaNai-v2-SuperUltraCompact
-        https://github.com/the-database/mpv-upscale-2x_animejanai
+Source: https://github.com/the-database/mpv-upscale-2x_animejanai
+        (AnimeJaNai HD v3 model family)
 
 License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0
          International (CC BY-NC-SA 4.0)

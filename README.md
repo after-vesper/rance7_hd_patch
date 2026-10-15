@@ -87,5 +87,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1 -GameDir "D:\Gam
 
 ## ライセンス
 
-- アップスケーリングモデル AnimeJaNai V2 SuperUltraCompact は **CC BY-NC-SA 4.0** です — [installer/LICENSES/model.txt](installer/LICENSES/model.txt) をご覧ください
+- アップスケーリングモデル AnimeJaNai HD v3 Sharp1 UltraCompact は **CC BY-NC-SA 4.0** です — [installer/LICENSES/model.txt](installer/LICENSES/model.txt) をご覧ください
 - alice-tools (同梱バイナリ) は GPL ライセンスです — 詳細は [installer/LICENSES/alice-tools.txt](installer/LICENSES/alice-tools.txt) をご覧ください
