@@ -276,8 +276,7 @@ $expect  = @{}
 if (-not (Test-Path $pyExe)) { Fail "インストーラーのファイルが不足しています: $pyExe" }
 
 Write-Host ""
-Write-Host "[1/5] ゲーム内画像からHD素材を生成します ..." -ForegroundColor Cyan
-Write-Host "      AIアップスケールで全画像を2倍に解像度化します"
+Write-Host "[1/5] HD素材の生成 - ゲーム内画像をAIで2倍化 ..." -ForegroundColor Cyan
 Write-Host "      DirectML対応GPUなら数分、再インストール時はキャッシュで高速です"
 $pyArgs = @(
     (Join-Path $Root 'gen\gen_ring.py'),
@@ -379,7 +378,7 @@ Write-Host "  AliceLogo3.dll に $dllChanged 箇所パッチ（800x600 -> 1600x1
 [IO.File]::WriteAllText($statePath, "in-progress; backup=$bakDir")
 
 Write-Host ""
-Write-Host "[2/5] Rance7.ain にパッチを適用します ..." -ForegroundColor Cyan
+Write-Host "[2/5] Rance7.ain - パッチを適用します ..." -ForegroundColor Cyan
 $tmpAin = Join-Path $GameDir 'Rance7.ain.hdtmp'
 try {
     $r = [HdPatch]::ApplyAinPatch($ainPath, $tmpAin, $sites, $aliceExe,
@@ -388,14 +387,14 @@ try {
     Remove-Item $tmpAin -ErrorAction SilentlyContinue
     Fail "AINパッチに失敗しました: $($_.Exception.Message)`n元のファイルは無傷です（バックアップ: $bakDir）"
 }
-Write-Host ("  パッチ箇所: 解決={0} 適用済={1} 緩和={2} 曖昧={3} 関数欠落={4}" -f
+Write-Host ("  パッチ箇所: {0} 件を解決（適用済 {1} / 緩和 {2} / 曖昧 {3} / 関数欠落 {4}）" -f
             $r.Ok, $r.AlreadyPatched, $r.Relaxed, $r.Ambiguous, $r.MissingFunc)
 if ($r.Writes -eq 0 -and $r.AlreadyPatched -eq 0) {
     Remove-Item $tmpAin -ErrorAction SilentlyContinue
     Fail "パッチ対象が見つかりませんでした - このAINには適用できません。`n詳細:`n  $($r.Problems -join "`n  ")"
 }
 if ($r.Ambiguous -gt 0 -or $r.MissingFunc -gt 0) {
-    Write-Host "  （致命的ではない問題があります。先頭の数件:）" -ForegroundColor Yellow
+    Write-Host "  注意: 一部の箇所に軽微な問題があります（処理は続行）:" -ForegroundColor Yellow
     $r.Problems | Select-Object -First 8 | ForEach-Object { Write-Host "    ! $_" }
 }
 # sanity check the produced AIN parses
@@ -480,7 +479,8 @@ foreach ($kv in $gmOrigSz.GetEnumerator()) {
 }
 foreach ($f in ($gmPl.Keys)) { $gmProj += $gmPl[$f] }
 $gmProj += 176L * ($gmOrigSz.Count + 64)
-Write-Host ("  Rance7GM.ald の完成予想サイズ: {0:N0} MB" -f ($gmProj / 1MB))
+Write-Host ""
+Write-Host ("  アーカイブ容量確認: Rance7GM.ald の完成予想は {0:N0} MB" -f ($gmProj / 1MB))
 
 if ($gmProj -gt $AldTarget) {
     # biggest payloads first; move every staged copy of the name
