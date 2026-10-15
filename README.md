@@ -24,9 +24,12 @@ Steam 版 **戦国ランス (Sengoku Rance / Rance 7)** の画面を、固定の
 
 ## インストール
 
-1. [リリースページ](https://github.com/after-vesper/rance7_hd_asset_patch/releases/latest)から ZIP を2つ(`rance7_hd_patch_*.zip` と `..._ga.zip`)ダウンロードし、**両方を同じフォルダに展開**して `installer` フォルダを開く
-2. `Install.cmd` をダブルクリック — Steam のゲームフォルダを自動検出します
+1. [リリースページ](https://github.com/after-vesper/rance7_hd_patch/releases/latest)から `SengokuRance_HDPatch.zip` をダウンロードし、任意の場所に展開します
+2. 展開したフォルダ内の `Install.cmd` をダブルクリック — Steam のゲームフォルダを自動検出します
 3. ゲームフォルダが `Program Files` 配下にある場合は、管理者権限の確認(UAC)が出ます
+
+インストーラーはお持ちのゲームデータから AI で HD 素材をその場で生成するため、パッケージ自体は約 90 MB です。
+DirectML 対応 GPU なら生成は数分で済みます。再インストール時は `hd_cache` のおかげで生成工程をスキップできます。
 
 Steam 以外でインストールしている場合は、パスの入力を求められます。PowerShell から `-GameDir` で直接指定することもできます:
 
@@ -62,4 +65,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1 -GameDir "D:\Gam
 
 ## ライセンス
 
-alice-tools (同梱バイナリ) は GPL ライセンスです — 詳細は [installer/LICENSES/alice-tools.txt](installer/LICENSES/alice-tools.txt) をご覧ください。
+- アップスケーリングモデル AnimeJaNai V2 SuperUltraCompact は **CC BY-NC-SA 4.0** です — [installer/LICENSES/model.txt](installer/LICENSES/model.txt) をご覧ください
+- alice-tools (同梱バイナリ) は GPL ライセンスです — 詳細は [installer/LICENSES/alice-tools.txt](installer/LICENSES/alice-tools.txt) をご覧ください
