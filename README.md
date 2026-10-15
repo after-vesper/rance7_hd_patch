@@ -10,7 +10,8 @@ Steam 版 **戦国ランス (Sengoku Rance / Rance 7)** の画面を、固定の
 - **論理解像度 1600×1200** — `Rance7.ain` 内の座標・レイアウト定数を全面的に2倍化(実行ファイルは一切変更しません)
 - **画像素材の高解像度化** — CG・立ち絵・UI・戦闘画面・マップなど約6,600件の画像を、AIアップスケーリングで2倍化して再格納します
 - **起動ロゴもHD化** — `AliceLogo3.alk` のロゴ演出と `DLL\AliceLogo3.dll` を高解像度対応させます
-- **インストール時生成** — HD素材はあなたのゲームデータからその場で生成します。パッケージサイズは約 90 MB
+- **OP/EDムービーもHD化** — `movie\` 内のムービーをAIで2倍化して再エンコードします(640×480 → 1280×960)
+- **インストール時生成** — HD素材はあなたのゲームデータからその場で生成します。パッケージサイズは約 160 MB
 - **バリアント自動検出** — ゲームの適用状態を自動判別して適切にパッチを適用
 - **安全設計** — 書き換え前にタイムスタンプ付きバックアップを作成。失敗時は元ファイルを保持します
 
@@ -18,7 +19,7 @@ Steam 版 **戦国ランス (Sengoku Rance / Rance 7)** の画面を、固定の
 
 - **Steam 版 戦国ランス**(通常版 / JPパッチ適用済み / 他の非公式パッチ適用済み)
 - **DirectML 対応 GPU 推奨** — ない場合でも動作しますが、初回の素材生成にかなり時間がかかります
-- **空き容量 約 8 GB** — 生成途中の作業領域とバックアップ用(完了後に作業領域は自動削除されます)
+- **空き容量 約 9 GB** — 生成途中の作業領域とバックアップ用(完了後に作業領域は自動削除されます)
 
 ## 対応バリアント
 
@@ -35,7 +36,7 @@ Steam 版 **戦国ランス (Sengoku Rance / Rance 7)** の画面を、固定の
 1. [リリースページ](https://github.com/after-vesper/rance7_hd_patch/releases/latest)から `SengokuRance_HDPatch.zip` をダウンロードし、任意の場所に展開します
 2. ゲームを終了した状態で、展開したフォルダ内の `Install.cmd` をダブルクリック — Steam のゲームフォルダを自動検出します
 3. ゲームフォルダが `Program Files` 配下にある場合は、管理者権限の確認(UAC)が出ます
-4. AIによるHD素材の生成が始まります(DirectML 対応 GPU なら数分)
+4. AIによるHD素材とOP/EDムービーの生成が始まります(DirectML 対応 GPU なら10分前後)
 5. 「HDパッチの適用が完了しました」と表示されたら完了です
 
 Steam 以外でインストールしている場合は、パスの入力を求められます。PowerShell から `-GameDir` で直接指定することもできます:
@@ -51,6 +52,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1 -GameDir "D:\Gam
 - `Rance7.ain` — 座標・レイアウト定数の2倍化
 - `Rance7GM.ald` / `Rance7GA.ald` — 描画データの高解像度化(アーカイブが2GBを超える場合は自動で GA 側へ振り分けます)
 - `AliceLogo3.alk` / `DLL\AliceLogo3.dll` — 起動ロゴ演出の高解像度化
+- `movie\Rance7OP.alm` / `movie\Staff.alm` — OP/EDムービーの高解像度化
 - `System40.ini` — `ViewWidth` / `ViewHeight` を 1600×1200 に設定
 
 いずれも書き換え前に `backup\hd_<日時>\` へ元ファイルが保存されます。
@@ -60,13 +62,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1 -GameDir "D:\Gam
 
 `Uninstall.cmd` をダブルクリックし、復元するバックアップを選択してください(既定は最新)。
 
-最新のバックアップから `Rance7.ain`・`System40.ini`・`Rance7*.ald`・起動ロゴ関連ファイルを復元します。セーブデータには触れません。
+最新のバックアップから `Rance7.ain`・`System40.ini`・`Rance7*.ald`・起動ロゴ関連ファイル・ムービーを復元します。セーブデータには触れません。
 復元がすべて検証できた場合、使用したバックアップフォルダは自動で削除されます(他のバックアップは残ります)。
-最後に `hd_cache`(生成素材キャッシュ、約 3 GB)を削除するか確認します。残しておくと次回インストール時の生成工程をスキップできます。
+最後に `hd_cache`(生成素材キャッシュ、約 3.5 GB)を削除するか確認します。残しておくと次回インストール時の生成工程をスキップできます。
 
 ## キャッシュについて
 
-`hd_cache` はゲームフォルダ内に作成される生成済み素材のキャッシュです(約 3 GB)。
+`hd_cache` はゲームフォルダ内に作成される生成済み素材・ムービーのキャッシュです(約 3.5 GB)。
 
 - パッチの再インストール・バージョンアップ時に、AI生成工程をスキップして高速化します
 - ゲームの Steam 再インストール(同一パス)後もそのまま再利用されます
@@ -89,3 +91,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Install.ps1 -GameDir "D:\Gam
 
 - アップスケーリングモデル AnimeJaNai HD v3 Sharp1 UltraCompact は **CC BY-NC-SA 4.0** です — [installer/LICENSES/model.txt](installer/LICENSES/model.txt) をご覧ください
 - alice-tools (同梱バイナリ) は GPL ライセンスです — 詳細は [installer/LICENSES/alice-tools.txt](installer/LICENSES/alice-tools.txt) をご覧ください
+- ffmpeg (同梱バイナリ、ムービーHD化のみに使用) は GPL ライセンスです — 詳細は [installer/LICENSES/ffmpeg.txt](installer/LICENSES/ffmpeg.txt) をご覧ください
