@@ -17,7 +17,6 @@ $ErrorActionPreference = 'Stop'
 Write-Host ""
 Write-Host "  ============================================================" -ForegroundColor Cyan
 Write-Host "   戦国ランス HDパッチ アンインストーラー" -ForegroundColor Cyan
-Write-Host "   ― 800x600の日常へ、お帰りなさい ―" -ForegroundColor Cyan
 Write-Host "  ============================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -61,7 +60,7 @@ function Find-SteamGame([string]$appId) {
 if (-not $GameDir) {
     $GameDir = Find-SteamGame '3867170'
     if ($GameDir) {
-        Write-Host "  居城発見（Steamインストール先）: $GameDir" -ForegroundColor Green
+        Write-Host "  Steamインストール先を検出: $GameDir" -ForegroundColor Green
     } else {
         $GameDir = Read-Host "  戦国ランスのインストールフォルダを入力してください"
     }
@@ -183,5 +182,5 @@ if (Test-Path $cacheDir) {
 }
 Write-Host ""
 Write-Host "  ============================================================" -ForegroundColor Green
-Write-Host "   元の姿に戻りました。また広い画面でお会いしましょう。" -ForegroundColor Green
+Write-Host "   バックアップから復元しました。" -ForegroundColor Green
 Write-Host "  ============================================================" -ForegroundColor Green

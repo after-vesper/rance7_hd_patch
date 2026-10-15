@@ -26,7 +26,6 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Write-Host ""
 Write-Host "  ============================================================" -ForegroundColor Cyan
 Write-Host "   戦国ランス HDパッチ インストーラー" -ForegroundColor Cyan
-Write-Host "   ― 1600x1200へ、画面の天下布武 ―" -ForegroundColor Cyan
 Write-Host "   （アリスソフト非公式のファン制作パッチです）" -ForegroundColor Cyan
 Write-Host "  ============================================================" -ForegroundColor Cyan
 Write-Host ""
@@ -102,11 +101,10 @@ foreach ($req in @($aliceExe, $csPath, $manifest, $sites)) {
 if (-not $GameDir) {
     $GameDir = Find-SteamGame '3867170'
     if ($GameDir) {
-        Write-Host "  居城発見（Steamインストール先）: $GameDir" -ForegroundColor Green
+        Write-Host "  Steamインストール先を検出: $GameDir" -ForegroundColor Green
         Write-Host ""
     } else {
-        Write-Host "  Steamからの自動検出に失敗しました。情報網も完璧ではないようです。" `
-            -ForegroundColor Yellow
+        Write-Host "  Steamからの自動検出に失敗しました。" -ForegroundColor Yellow
         $GameDir = Read-Host "  戦国ランスのインストールフォルダを入力してください（Rance7.exe がある場所）"
     }
 }
@@ -117,9 +115,7 @@ $probe = Join-Path $GameDir (".hd_write_test_" + [guid]::NewGuid().ToString('N')
 try {
     [IO.File]::WriteAllText($probe, 'x'); Remove-Item $probe -Force
 } catch {
-    Write-Host "  書き込み権限が足りません。管理者権限でやり直します" `
-        -ForegroundColor Yellow
-    Write-Host "  （天下取りに権力はつきものです）..." `
+    Write-Host "  書き込み権限が足りません。管理者権限でやり直します..." `
         -ForegroundColor Yellow
     $args = @('-NoProfile', '-ExecutionPolicy', 'Bypass',
               '-File', "`"$PSCommandPath`"",
@@ -133,7 +129,7 @@ if (-not (Test-Path $ainPath)) { Fail "Rance7.ain が見つかりません: '$Ga
 if (-not (Test-Path $iniPath)) { Fail "System40.ini が見つかりません: '$GameDir'" }
 
 if (Get-Process -Name Rance7 -ErrorAction SilentlyContinue) {
-    Fail "Rance7.exe が起動中です。先にゲームを閉じてください（ランスには待ってもらいましょう）。"
+    Fail "Rance7.exe が起動中です。先にゲームを閉じてください。"
 }
 
 # ---------- interrupted / already-installed guard ----------
@@ -214,8 +210,7 @@ $need = (Get-Item $gmPath).Length + (Get-Item $gaPath).Length + 8GB
 $drive = (Get-Item $GameDir).PSDrive
 $free = (Get-PSDrive $drive.Name).Free
 if ($free -lt $need) {
-    Fail ("ドライブ {0}: の空き容量が足りません - 必要 ~{1:N1} GB / 空き {2:N1} GB`n" +
-          "大画面は大食いです。少しお掃除してからどうぞ。" -f
+    Fail ("ドライブ {0}: の空き容量が足りません - 必要 ~{1:N1} GB / 空き {2:N1} GB" -f
           $drive.Name, ($need / 1GB), ($free / 1GB))
 }
 
@@ -281,9 +276,9 @@ $expect  = @{}
 if (-not (Test-Path $pyExe)) { Fail "インストーラーのファイルが不足しています: $pyExe" }
 
 Write-Host ""
-Write-Host "[1/5] 兵力動員：ゲーム内画像からHD素材を生成します ..." -ForegroundColor Cyan
-Write-Host "      AIアップスケールで全画像を2倍に解像度化（兵力6,612）"
-Write-Host "      DirectML対応GPUなら数分、再インストール時はキャッシュで一瞬です"
+Write-Host "[1/5] ゲーム内画像からHD素材を生成します ..." -ForegroundColor Cyan
+Write-Host "      AIアップスケールで全画像を2倍に解像度化します"
+Write-Host "      DirectML対応GPUなら数分、再インストール時はキャッシュで高速です"
 $pyArgs = @(
     (Join-Path $Root 'gen\gen_ring.py'),
     '--emit-qnt',
@@ -338,7 +333,7 @@ if (Test-Path $alkSrc) {
         Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
         Fail "AliceLogo3.alk の生成に失敗しました - ゲームファイルは無傷です（バックアップ: $bakDir）"
     }
-    Write-Host "  AliceLogo3.alk も80コマHD化（起動演出まで抜かりなし）"
+    Write-Host "  AliceLogo3.alk を80コマHD化"
 } else {
     Write-Host "  AliceLogo3.alk は存在しないためスキップ"
 }
@@ -367,7 +362,7 @@ foreach ($p in $dllPatch) {
         $dllChanged++
     } elseif ($cur -ne $p[2]) {
         Write-Host (("  ! AliceLogo3.dll が想定と異なります（0x{0:x}）- " +
-                     "無理に触らず未パッチのままにします（ロゴは低解像度のままかも）") -f $o) `
+                     "パッチせずスキップします（ロゴは低解像度のままの可能性）") -f $o) `
             -ForegroundColor Yellow
     }
 }
@@ -385,7 +380,7 @@ Write-Host "  AliceLogo3.dll に $dllChanged 箇所パッチ（800x600 -> 1600x1
 [IO.File]::WriteAllText($statePath, "in-progress; backup=$bakDir")
 
 Write-Host ""
-Write-Host "[2/5] 作戦書の改訂：Rance7.ain にパッチを適用 ..." -ForegroundColor Cyan
+Write-Host "[2/5] Rance7.ain にパッチを適用します ..." -ForegroundColor Cyan
 $tmpAin = Join-Path $GameDir 'Rance7.ain.hdtmp'
 try {
     $r = [HdPatch]::ApplyAinPatch($ainPath, $tmpAin, $sites, $aliceExe,
@@ -529,7 +524,7 @@ if ($gmProj -gt $AldTarget) {
         $moved++
         $movedBytes += $byName[$nm].Size
     }
-    Write-Host ("  兵站調整: 大きい素材 {0} 件をGMからGAへ移動（{1:N0} MB）→ GMは約{2:N0} MBに" -f $moved, ($movedBytes / 1MB), ($gmProj / 1MB))
+    Write-Host ("  サイズ調整: 大きい素材 {0} 件をGMからGAへ移動（{1:N0} MB）→ GMは約{2:N0} MBに" -f $moved, ($movedBytes / 1MB), ($gmProj / 1MB))
     if ($gmProj -gt $AldTarget) {
         Write-Host ("  ! 警告: それでもGMが安全圏を超える見込みです - " +
                     "2GB以降の素材が表示されない可能性があります") `
@@ -569,7 +564,7 @@ for ($i = 0; $i -lt $movedNames.Count; $i++) {
 Write-Host ("  GAへのリンク振替: {0} 行" -f $movedRows.Count)
 
 Write-Host ""
-Write-Host "[4/5] Rance7GM.ald - HD素材を格納します（約1〜2GBの大仕事） ..." -ForegroundColor Cyan
+Write-Host "[4/5] Rance7GM.ald - HD素材を格納します（約1〜2GB） ..." -ForegroundColor Cyan
 Repack-Archive $gmPath 'Rance7GM.ald' 'GM' $mj.archives.'Rance7GM.ald'.disk $movedRows
 
 # hard ceiling check: the engine's signed 32-bit seek cannot reach
@@ -613,7 +608,7 @@ foreach ($f in $mj.files) {
 # ---------- System40.ini ----------
 
 Write-Host ""
-Write-Host "[5/5] System40.ini - 最終調整：表示を1600x1200へ ..." -ForegroundColor Cyan
+Write-Host "[5/5] System40.ini - 表示を1600x1200に設定します ..." -ForegroundColor Cyan
 # read/write as raw bytes via cp932 so no encoding conversion can corrupt
 # unrelated settings
 $enc932 = [Text.Encoding]::GetEncoding(932)
@@ -629,8 +624,7 @@ Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host "  ============================================================" -ForegroundColor Green
-Write-Host "   天下統一……ではなく、HDパッチの適用が完了しました。" -ForegroundColor Green
-Write-Host "   あとは1600x1200のJAPANを制覇するだけです。がんばって。" -ForegroundColor Green
+Write-Host "   HDパッチの適用が完了しました。" -ForegroundColor Green
 Write-Host "  ============================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  バックアップ: $bakDir"
