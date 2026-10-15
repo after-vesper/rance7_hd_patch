@@ -148,5 +148,28 @@ Get-ChildItem $GameDir -Directory -Filter 'hd_gen_*' `
 Get-ChildItem $GameDir -File -Filter '*.hdtmp' `
     -ErrorAction SilentlyContinue |
     Remove-Item -Force -ErrorAction SilentlyContinue
+
+# the payload cache (~2-3 GB) survives restores on purpose; offer to
+# remove it since Steam's uninstall won't clean it either
+$cacheDir = Join-Path $GameDir 'hd_cache'
+if (Test-Path $cacheDir) {
+    $sz = [math]::Round(
+        ((Get-ChildItem $cacheDir -Recurse -File -ErrorAction SilentlyContinue |
+          Measure-Object Length -Sum).Sum / 1GB), 1)
+    $ans = Read-Host ("Delete the payload cache 'hd_cache' ({0} GB)? " +
+                      "Keeping it makes re-installs much faster [y/N]" -f $sz)
+    if ($ans -match '^(y|yes)$') {
+        Remove-Item -Recurse -Force $cacheDir -ErrorAction SilentlyContinue
+        if (Test-Path $cacheDir) {
+            Write-Host "WARNING: could not fully remove '$cacheDir'." `
+                -ForegroundColor Yellow
+        } else {
+            Write-Host "removed hd_cache" -ForegroundColor DarkGray
+        }
+    } else {
+        Write-Host "kept hd_cache (re-install will reuse it)" `
+            -ForegroundColor DarkGray
+    }
+}
 Write-Host ""
 Write-Host "=== Restored from backup ===" -ForegroundColor Green
