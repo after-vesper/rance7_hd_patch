@@ -204,15 +204,22 @@ def main():
             os.makedirs(a.cache_dir, exist_ok=True)
             ck = _cache_key(src)
             hit = os.path.join(a.cache_dir, ck)
-            if os.path.exists(hit):
+            try:
+                with open(hit, 'rb') as f:
+                    blob = f.read()
+            except OSError:
+                blob = None  # missing or transiently locked: re-encode
+            if blob is not None:
                 os.makedirs(os.path.dirname(os.path.abspath(dst)),
                             exist_ok=True)
-                with open(hit, 'rb') as f, open(dst, 'wb') as o:
-                    o.write(f.read())
-                print('  %s: キャッシュから再利用' % name)
+                with open(dst, 'wb') as o:
+                    o.write(blob)
+                print(L('  %s: キャッシュから再利用',
+                        '  %s: 从缓存复用') % name)
                 n_gen += 1
                 continue
-        print('  %s: 640x480 -> 1280x960 へアップスケール中 ...' % name)
+        print(L('  %s: 640x480 -> 1280x960 へアップスケール中 ...',
+                '  %s: 正在将 640x480 放大到 1280x960 ...') % name)
         os.makedirs(a.dst_dir, exist_ok=True)
         tmp = dst + '.tmp'
         _upscale(a.ffmpeg, src, tmp, a.bitrate, name)

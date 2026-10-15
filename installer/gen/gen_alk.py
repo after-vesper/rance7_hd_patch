@@ -92,12 +92,18 @@ def main():
         os.makedirs(a.cache_dir, exist_ok=True)
         ck = _cache_key(raw)
         hit = os.path.join(a.cache_dir, ck)
-        if os.path.exists(hit):
+        try:
+            with open(hit, 'rb') as f:
+                blob = f.read()
+        except OSError:
+            blob = None  # missing or transiently locked: regenerate
+        if blob is not None:
             os.makedirs(os.path.dirname(os.path.abspath(a.dst)),
                         exist_ok=True)
-            with open(hit, 'rb') as f, open(a.dst, 'wb') as o:
-                o.write(f.read())
-            print('  %s.alk: キャッシュから再利用' % label)
+            with open(a.dst, 'wb') as o:
+                o.write(blob)
+            print(L('  %s.alk: キャッシュから再利用',
+                    '  %s.alk: 从缓存复用') % label)
             return
 
     recipes = json.load(open(a.recipes))

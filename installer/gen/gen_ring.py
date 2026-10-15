@@ -116,20 +116,17 @@ def _worker_main(wid, job_q, mft_q, out_dir, emit_qnt, batch, gpu_sem):
         if spec is None:
             break
         try:
-            j = _prep_job(spec)
-            if j is not None:
-                # whole-frame job: single native-size inference
-                t0 = time.time()
-                o = _infer(lambda a: ga.infer_arr(a, _w.inp, _w.sess),
-                           j.pop('_arr'))
-                _w.tiles += 1
-                _stage('infer', t0)
-                j['outs'] = {0: o}
-                _submit_finish(j)
-        except Exception as e:
-            arch, var, fn, rec, order = spec
-            mft_q.put(('ERR', '%s/%s/%s [%s]: %s'
-                       % (arch, var, fn, rec, e)))
+            _run_job(spec)
+        except Exception:
+            # one retry absorbs transient IO contention (AV scans,
+            # cache-file replace races); a persistent failure reports ERR
+            try:
+                time.sleep(0.05)
+                _run_job(spec)
+            except Exception as e:
+                arch, var, fn, rec, order = spec
+                mft_q.put(('ERR', '%s/%s/%s [%s]: %s'
+                           % (arch, var, fn, rec, e)))
     if _w.fin is not None:
         _w.fin.shutdown(wait=True)
     mft_q.put(('STATS', wid, _w.tiles, _w.st))
@@ -142,11 +139,34 @@ def _cache_key(src, rec):
     return h.hexdigest()
 
 
+def _run_job(spec):
+    j = _prep_job(spec)
+    if j is not None:
+        # whole-frame job: single native-size inference
+        t0 = time.time()
+        o = _infer(lambda a: ga.infer_arr(a, _w.inp, _w.sess),
+                   j.pop('_arr'))
+        _w.tiles += 1
+        _stage('infer', t0)
+        j['outs'] = {0: o}
+        _submit_finish(j)
+
+
 def _cache_get(key):
+    """Read a cached payload. On Windows the open can be denied
+    momentarily while another worker's os.replace swaps the file in
+    (delete-pending), or while an AV scan holds a lock — retry briefly,
+    then degrade to a miss. The cache is an optimisation and must
+    never fail the job."""
     p = os.path.join(_w.cache_dir, key)
-    if os.path.exists(p):
-        with open(p, 'rb') as f:
-            return f.read()
+    for _ in range(5):
+        try:
+            with open(p, 'rb') as f:
+                return f.read()
+        except FileNotFoundError:
+            return None
+        except OSError:
+            time.sleep(0.02)
     return None
 
 
@@ -266,7 +286,11 @@ def _submit_finish(j):
 def _finish_safe(j):
     t0 = time.time()
     try:
-        _finish(j)
+        try:
+            _finish(j)
+        except Exception:
+            time.sleep(0.05)
+            _finish(j)  # retry once for transient output-file locks
     except Exception as e:
         _w.mft_q.put(('ERR', '%s/%s/%s: %s'
                       % (j['arch'], j['var'], j['name'], e)))

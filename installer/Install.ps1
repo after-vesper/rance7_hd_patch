@@ -448,8 +448,10 @@ if ($isZh) {
 }
 if ($got -lt $want) {
     Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
-    Fail (L "アセット生成が途中で止まりました（$got/$want）- ゲームファイルは無傷です" `
-            "素材生成中途停止（$got/$want）- 游戏文件未受影响")
+    Fail (L ("アセット生成が途中で止まりました（$got/$want）- ゲームファイルは無傷です`n" +
+             "再実行すると生成済み分はキャッシュから再利用されます") `
+            ("素材生成中途停止（$got/$want）- 游戏文件未受影响`n" +
+             "重新运行将复用已生成的缓存素材"))
 }
 Write-Host (L "  マニフェスト照合OK（$got / $want 件）" `
               "  清单校验通过（$got / $want 项）") -ForegroundColor DarkGray
