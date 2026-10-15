@@ -25,6 +25,14 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+# The ja/zh UI strings are emitted from both PowerShell (UTF-16 console
+# API, always fine) and the embedded python (byte-oriented stdout which
+# encodes via the console codepage: cp932/cp936 cannot represent the
+# other language's characters and would crash on print). Force UTF-8
+# on both sides so mixed output renders in any console.
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
+$env:PYTHONUTF8 = '1'
+
 # UI language: provisional guess from the OS culture, then confirmed by
 # the game build once the directory is known (only the zh build ships
 # Rance7GB.ald). L() picks the string for the active language.
@@ -111,6 +119,10 @@ foreach ($req in @($aliceExe, $csPath, $manifest, $sites)) {
 if (-not $GameDir) {
     $GameDir = Find-SteamGame '3867170'
     if ($GameDir) {
+        # the zh build ships Rance7GB.ald; once the dir is known the UI
+        # language is fixed already (updates the OS-culture guess above)
+        $script:LANG = if (Test-Path (Join-Path $GameDir 'Rance7GB.ald')) {
+            'zh' } else { 'ja' }
         Write-Host (L "  Steamインストール先を検出: $GameDir" `
                       "  已检测到 Steam 安装目录: $GameDir") -ForegroundColor Green
         Write-Host ""
@@ -127,6 +139,7 @@ $GameDir = $GameDir.Trim().Trim('"').TrimEnd('\', '/')
 # the archive layout and the UI language for the rest of the run
 $script:LANG = if (Test-Path (Join-Path $GameDir 'Rance7GB.ald')) {
     'zh' } else { 'ja' }
+$env:GEN_LANG = $script:LANG   # the python gen scripts read this
 
 Write-Host ""
 Write-Host "  ============================================================" -ForegroundColor Cyan

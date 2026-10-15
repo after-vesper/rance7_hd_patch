@@ -58,6 +58,14 @@ BATCH_CANDIDATES = (4, 8, 16)
 
 NO_GPU = {'nearest', 'lanczos', 'manual'}
 
+# UI language for console output: Install.ps1 exports GEN_LANG for the
+# zh build (same convention as the PowerShell-side L() helper).
+_LANG = os.environ.get('GEN_LANG', 'ja')
+
+
+def L(ja, zh):
+    return zh if _LANG == 'zh' else ja
+
 # Console output is shared between the drain thread's in-place progress
 # bar and plain status prints from the main thread; a lock + line-length
 # tracker keeps them from interleaving on the same row.
@@ -367,12 +375,16 @@ def calibrate_batch(s, inp):
     BATCH = best_n
     prov = s.get_providers()[0] if s.get_providers() else '?'
     rate = 1.0 / best_t if best_t else 0.0
-    _log('  GPU測定: provider=%s バッチ=%d（%.1f タイル/秒）%s'
+    _log(L('  GPU測定: provider=%s バッチ=%d（%.1f タイル/秒）%s',
+           '  GPU 测量: provider=%s 批次=%d（%.1f 图块/秒）%s')
          % (prov, best_n, rate,
-            '' if best_t else ' [provider検出失敗]'))
+            '' if best_t else L(' [provider検出失敗]',
+                                ' [provider 检测失败]')))
     if rate and rate < 3.0:
-        _log('  警告: 推論がかなり遅いようです（CPU実行？）。'
-             'このPCでは生成にかなり時間がかかる見込みです')
+        _log(L('  警告: 推論がかなり遅いようです（CPU実行？）。'
+               'このPCでは生成にかなり時間がかかる見込みです',
+               '  警告: 推理速度很慢（可能是用 CPU 运行的？）。'
+               '此电脑上的生成预计需要较长时间'))
     return BATCH
 
 
@@ -461,9 +473,11 @@ def main():
             mem_cap = max(2, avail // 500)
             if mem_cap < args.workers:
                 args.workers = mem_cap
-                print('  空きメモリの都合でワーカー数を %d に制限します'
-                      '（空き %d MB）' % (args.workers, avail),
-                      flush=True)
+                print(L('  空きメモリの都合でワーカー数を %d に制限します'
+                        '（空き %d MB）',
+                        '  因可用内存限制，将工作进程数调整为 %d'
+                        '（可用 %d MB）')
+                      % (args.workers, avail), flush=True)
     # export install-mode settings before spawning workers (spawned
     # processes re-import modules and pick these up from the env)
     if args.model:
@@ -489,8 +503,8 @@ def main():
         if ga.MODEL and os.path.exists(ga.MODEL):
             tag += ':' + _sha256_file(ga.MODEL)
         os.environ['GEN_CACHE_TAG'] = tag
-        _log('  素材キャッシュ: %s' % cache_dir)
-    _log('  並列ワーカー: %d' % args.workers)
+        _log(L('  素材キャッシュ: %s', '  素材缓存: %s') % cache_dir)
+    _log(L('  並列ワーカー: %d', '  并行工作进程: %d') % args.workers)
 
     mani = gp.load_manifest()
     order_map = {'vanilla': ['vanilla', 'jp'], 'jp': ['jp', 'vanilla'],
@@ -551,7 +565,7 @@ def main():
             specs.append((arch, var, fn, rec, order_map[var]))
     if args.limit:
         specs = specs[:args.limit]
-    _log('  生成対象: %d 件' % len(specs))
+    _log(L('  生成対象: %d 件', '  生成对象: %d 个') % len(specs))
 
     ctx = mp.get_context('spawn')
     job_q = ctx.Queue()
@@ -647,10 +661,12 @@ def main():
     show_progress(final=True)
     el = time.time() - t_gpu
     if n_tiles:
-        _log('  GPU推論: %d タイル / %.1f秒（%.1f タイル/秒）'
+        _log(L('  GPU推論: %d タイル / %.1f秒（%.1f タイル/秒）',
+               '  GPU 推理: %d 图块 / %.1f 秒（%.1f 图块/秒）')
              % (n_tiles, el, n_tiles / el))
     if stage_ms and os.environ.get('GEN_STATS'):
-        _log('  ステージ時間 ms/件（ワーカー合計）: ' + ', '.join(
+        _log(L('  ステージ時間 ms/件（ワーカー合計）: ',
+               '  各阶段耗时 ms/项（工作进程合计）: ') + ', '.join(
             '%s=%.0f' % (k, v / max(1, expect))
             for k, v in sorted(stage_ms.items())))
 
@@ -662,7 +678,8 @@ def main():
             json.dump(m, f, ensure_ascii=False, indent=1)
     hits = sum(1 for m in meta.values() for i in m.values()
                if i.get('cache'))
-    _log('  完了: %d 件生成（うちキャッシュ再利用 %d 件）/ エラー %d 件'
+    _log(L('  完了: %d 件生成（うちキャッシュ再利用 %d 件）/ エラー %d 件',
+           '  完成: 已生成 %d 个（其中复用缓存 %d 个）/ 错误 %d 个')
          % (n_done, hits, n_err))
 
 

@@ -63,6 +63,10 @@ function Find-SteamGame([string]$appId) {
 if (-not $GameDir) {
     $GameDir = Find-SteamGame '3867170'
     if ($GameDir) {
+        # the zh build ships Rance7GB.ald; once the dir is known the UI
+        # language is fixed already (updates the OS-culture guess above)
+        $script:LANG = if (Test-Path (Join-Path $GameDir 'Rance7GB.ald')) {
+            'zh' } else { 'ja' }
         Write-Host (L "  Steamインストール先を検出: $GameDir" `
                       "  已检测到 Steam 安装目录: $GameDir") -ForegroundColor Green
     } else {

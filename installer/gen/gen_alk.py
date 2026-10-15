@@ -21,6 +21,13 @@ import gen_audit as ga
 import gen_recipes as gr
 import qnt_fast
 
+# UI language for console output (GEN_LANG, same scheme as gen_ring).
+_LANG = os.environ.get('GEN_LANG', 'ja')
+
+
+def L(ja, zh):
+    return zh if _LANG == 'zh' else ja
+
 
 def read_alk(d):
     magic, count = struct.unpack_from('<4sI', d, 0)
@@ -135,8 +142,9 @@ def main():
     show(n_gen, final=True)
     os.makedirs(os.path.dirname(os.path.abspath(a.dst)), exist_ok=True)
     write_alk(entries, a.dst)
-    print('  %s.alk: 生成 %d コマ / 素通し %d / 計 %d エントリ' %
-          (label, n_gen, n_pass, len(entries)))
+    print(L('  %s.alk: 生成 %d コマ / 素通し %d / 計 %d エントリ',
+            '  %s.alk: 生成 %d 帧 / 原样保留 %d / 共 %d 项')
+          % (label, n_gen, n_pass, len(entries)))
     if ck is not None:
         try:
             tmp = os.path.join(a.cache_dir, ck + '.tmp')

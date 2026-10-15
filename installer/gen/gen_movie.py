@@ -35,6 +35,14 @@ import numpy as np  # noqa: E402
 
 import gen_audit as ga  # noqa: E402
 
+# UI language for console output (GEN_LANG, same scheme as gen_ring).
+_LANG = os.environ.get('GEN_LANG', 'ja')
+
+
+def L(ja, zh):
+    return zh if _LANG == 'zh' else ja
+
+
 # movie/*.alm is globbed at run time so language-specific extras
 # (e.g. the zh build's Rance7ED.alm) are picked up automatically.
 
@@ -217,9 +225,11 @@ def main():
                 os.replace(hit + '.tmp', hit)
             except OSError:
                 pass  # cache is an optimisation; never fail the job
-    print('  ムービー生成: %d 本' % n_gen)
+    print(L('  ムービー生成: %d 本', '  影片生成: %d 部') % n_gen)
     if n_gen == 0:
-        print('  （バックアップに movie/*.alm が無いため何もしませんでした）')
+        print(L('  （バックアップに movie/*.alm が無いため'
+                '何もしませんでした）',
+                '  （备份中没有 movie/*.alm，未执行任何操作）'))
 
 
 if __name__ == '__main__':
