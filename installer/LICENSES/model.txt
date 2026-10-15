@@ -1,9 +1,16 @@
-Upscale model: 2x-AnimeSharpV4_Fast_RCAN_PU (fp16 ONNX)
-Source: https://openmodeldb.info/
+Upscale model: AnimeJaNai v2 SuperUltraCompact (fp16/clamp ONNX
+               conversion of 2x_AnimeJaNai_V2_SuperUltraCompact_100k)
+Author: the-database
+Source: https://openmodeldb.info/models/2x-AnimeJaNai-v2-SuperUltraCompact
+        https://github.com/the-database/mpv-upscale-2x_animejanai
 
 License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0
          International (CC BY-NC-SA 4.0)
          https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Changes: converted from the original .pth weights to fp16 ONNX
+         (opset 18) with clamp output, per the VSGAN-tensorrt-docker
+         conversion release by styler00dollar.
 
 This patch is distributed free of charge for non-commercial use.
 The model file (gen/model.onnx) may not be used for commercial purposes.
