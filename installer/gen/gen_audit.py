@@ -33,9 +33,12 @@ import numpy as np  # noqa: E402
 from PIL import Image  # noqa: E402
 import onnxruntime as ort  # noqa: E402
 
+_MODEL_LOCAL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            'model.onnx')
 MODEL = os.environ.get(
     'GEN_MODEL',
-    os.path.join(ROOT, 'work/_spike/2x-AnimeSharpV4_Fast_RCAN_PU.onnx'))
+    _MODEL_LOCAL if os.path.exists(_MODEL_LOCAL)
+    else os.path.join(ROOT, 'work/_spike/2x-AnimeSharpV4_Fast_RCAN_PU.onnx'))
 OUT = os.path.join(ROOT, 'work/gen_audit_report.json')
 
 SRC = {
@@ -46,6 +49,13 @@ SRC = {
 }
 DATA = os.environ.get('GEN_DATA', os.path.join(ROOT, 'installer/data'))
 TILE, OV = 256, 16
+
+# Whole-frame inference cap: the ONNX model accepts dynamic HxW, so any
+# input below this limit is upscaled in a single run instead of the
+# 256px tile grid (which exists only as a memory-safety fallback for
+# oversized inputs). Every game asset (max 800x1200) fits well below it.
+WHOLE_MAX_SIDE = 2048
+WHOLE_MAX_PX = 2048 * 2048
 
 _sess = None
 
@@ -115,12 +125,41 @@ def to_img(payload):
                            'raw', 'BGRA' if ch == 4 else 'BGR')
 
 
-def infer_tile(arr, inp, s):
+def fits_whole(w, h):
+    """True when the image can be upscaled in one whole-frame inference."""
+    return w <= WHOLE_MAX_SIDE and h <= WHOLE_MAX_SIDE \
+        and w * h <= WHOLE_MAX_PX
+
+
+def infer_core(arr, inp, s):
+    """Whole-image inference: HWC uint8 RGB in, fp32 CHW (BGR, 0..1) out.
+
+    Post-processing is kept in fp32 — numpy fp16 elementwise math is
+    software-emulated on CPU and costs more than the inference itself."""
     a = np.asarray(arr, dtype=np.float32) / 255.0
     a = np.transpose(a[:, :, ::-1], (2, 0, 1))[None].astype(np.float16)
-    out = s.run(None, {inp: a})[0][0]
-    o = np.transpose(out, (1, 2, 0))[:, :, ::-1].copy()
-    return Image.fromarray(np.clip(o * 255, 0, 255).astype(np.uint8), 'RGB')
+    return s.run(None, {inp: a})[0][0].astype(np.float32)
+
+
+def infer_arr(arr, inp, s):
+    """Whole-image 2x inference. HWC uint8 RGB -> HWC uint8 RGB."""
+    o = infer_core(arr, inp, s)
+    np.multiply(o, np.float32(255), out=o)
+    np.clip(o, 0, 255, out=o)
+    return np.transpose(o, (1, 2, 0))[:, :, ::-1].astype(np.uint8)
+
+
+def infer_planes(arr, inp, s):
+    """infer_arr variant returning uint8 CHW in model channel order
+    (B,G,R) — for planar-video encoders (ffmpeg gbrp)."""
+    o = infer_core(arr, inp, s)
+    np.multiply(o, np.float32(255), out=o)
+    np.clip(o, 0, 255, out=o)
+    return o.astype(np.uint8)
+
+
+def infer_tile(arr, inp, s):
+    return Image.fromarray(infer_arr(arr, inp, s), 'RGB')
 
 
 def split_grid(image, tile_w, tile_h, overlap):
@@ -188,10 +227,18 @@ def model_up(im, batch=1):
     has dynamic batch dims; all tiles are 256x256 after split_grid's
     black padding). Output is identical to batch=1 apart from fp16
     scheduling noise.
+
+    Images that fit under WHOLE_MAX_SIDE/WHOLE_MAX_PX skip the tile
+    grid entirely and run one whole-frame inference — same model,
+    dynamic HxW, no overlap blending needed.
     """
     w, h = im.size
     s = sess()
     inp = s.get_inputs()[0].name
+    if fits_whole(w, h):
+        ut = infer_tile(np.asarray(im.convert('RGB')), inp, s)
+        return ut.crop((0, 0, w * 2, h * 2)) if ut.size != (w * 2, h * 2)\
+            else ut
     tiles = split_grid(im, TILE, TILE, OV)
     flat = [(ri, ci, t) for ri, (y, th, row) in enumerate(tiles)
             for ci, (x, tw, t) in enumerate(row)]

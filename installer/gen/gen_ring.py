@@ -108,7 +108,16 @@ def _worker_main(wid, job_q, mft_q, out_dir, emit_qnt, batch, gpu_sem):
         if spec is None:
             break
         try:
-            _start_job(spec)
+            j = _prep_job(spec)
+            if j is not None:
+                # whole-frame job: single native-size inference
+                t0 = time.time()
+                o = _infer(lambda a: ga.infer_arr(a, _w.inp, _w.sess),
+                           j.pop('_arr'))
+                _w.tiles += 1
+                _stage('infer', t0)
+                j['outs'] = {0: o}
+                _submit_finish(j)
         except Exception as e:
             arch, var, fn, rec, order = spec
             mft_q.put(('ERR', '%s/%s/%s [%s]: %s'
@@ -158,7 +167,13 @@ def _infer(fn, arg):
         _w.gpu_sem.release()
 
 
-def _start_job(spec):
+def _prep_job(spec):
+    """CPU side of one job: source lookup -> decode -> model input.
+
+    Returns a pending job dict (with the raw HWC uint8 model input in
+    j['_arr']) when the job needs whole-frame GPU inference, or None
+    when the job was completed inline (cache hit / no-GPU recipe /
+    oversized tiled fallback)."""
     arch, var, fn, rec, order = spec
     t0 = time.time()
     src, at = ga.src_payload(_w.alds, fn, order)
@@ -166,14 +181,14 @@ def _start_job(spec):
     if src is None:
         raise FileNotFoundError('no source for %s' % fn)
     if rec == 'manual':
-        return  # exception payloads are placed separately
+        return None  # exception payloads are placed separately
     ckey = None
     if _w.cache_dir and _w.emit_qnt:
         ckey = _cache_key(src, rec)
         blob = _cache_get(ckey)
         if blob is not None:
             _cache_hit(spec, at, blob)
-            return
+            return None
     t0 = time.time()
     si = ajp.decode_rgba(src) if fn.lower().endswith('.ajp') \
         else ga.to_img(src)
@@ -181,7 +196,7 @@ def _start_job(spec):
     if rec in NO_GPU:
         out = gr.apply(rec, si)
         _save_and_report(spec, at, out, src, ckey)
-        return
+        return None
     # build model input image (padded_ai uses a canvas)
     inp_im = si.convert('RGB')
     if rec == 'padded_ai':
@@ -193,19 +208,13 @@ def _start_job(spec):
         cv.paste(si.convert('RGBA'), ((cw - w) // 2, (ch - h) // 2))
         inp_im = cv.convert('RGB')
     W2, H2 = inp_im.size
-    tiles = ga.split_grid(inp_im, TILE, TILE, OV)
-    if not any(row[2] for row in tiles):
-        # sub-overlap: single native-size inference (raw HWC RGB)
-        o = _infer(lambda a: ga.infer_tile(np.asarray(a), _w.inp,
-                                         _w.sess), inp_im)
-        _w.tiles += 1
-        j = {'si': si, 'recipe': rec, 'name': fn,
-             'arch': arch, 'var': var, 'src': at,
-             'srcbytes': src, 'ckey': ckey,
-             'outs': {0: np.asarray(o)},
-             'W': W2 * 2, 'H': H2 * 2, 'native': (W2, H2)}
-        _submit_finish(j)
-        return
+    if ga.fits_whole(W2, H2):
+        # whole-frame: queue for same-shape batched inference
+        return {'si': si, 'recipe': rec, 'name': fn,
+                'arch': arch, 'var': var, 'src': at,
+                'srcbytes': src, 'ckey': ckey,
+                '_arr': np.asarray(inp_im),
+                'W': W2 * 2, 'H': H2 * 2, 'native': (W2, H2)}
     t0 = time.time()
     meta_tiles, items = gf.prepare_tiles(inp_im)
     _stage('prep', t0)
@@ -216,10 +225,13 @@ def _start_job(spec):
         a = np.stack([c[1] for c in chunk])
         res = _infer(lambda arr: _w.sess.run(None, {_w.inp: arr})[0], a)
         _w.tiles += len(chunk)
-        # whole-batch fp16 -> u8 BGR: one vector pass instead of
-        # per-tile numpy ops in the finisher
-        u8 = np.clip(res * np.float16(255.0), 0, 255) \
-            .transpose(0, 2, 3, 1)[:, :, :, ::-1].astype(np.uint8)
+        # whole-batch -> u8 BGR: one vector pass instead of
+        # per-tile numpy ops in the finisher (fp32 math; fp16
+        # elementwise ops are software-emulated and slower)
+        res = res.astype(np.float32)
+        np.multiply(res, np.float32(255.0), out=res)
+        np.clip(res, 0, 255, out=res)
+        u8 = res.transpose(0, 2, 3, 1)[:, :, :, ::-1].astype(np.uint8)
         for (ti, _), o in zip(chunk, u8):
             outs[ti] = o
     _stage('infer', t0)
@@ -229,6 +241,7 @@ def _start_job(spec):
          'tiles': meta_tiles, 'outs': outs,
          'W': W2 * 2, 'H': H2 * 2, 'native': None}
     _submit_finish(j)
+    return None
 
 
 def _submit_finish(j):
@@ -435,8 +448,10 @@ def main():
         # serial workers (FIN_THREADS=0) can go closer to the core count;
         # threaded finishers share each worker's GIL so fewer help
         n = (os.cpu_count() or 8)
-        args.workers = max(4, min(20, n - 2)) if FIN_THREADS == 0 \
-            else max(4, min(16, n // 2))
+        # CPU-bound pipeline (decode/encode dominate); scale with cores.
+        # Beyond ~16 processes contention outweighs the extra lanes and
+        # each worker's session still commits ~500 MB either way.
+        args.workers = max(4, min(16, n - 2))
         avail = _avail_commit_mb()
         if avail is not None:
             # each worker commits ~500 MB (interpreter + numpy/scipy/ort
@@ -586,7 +601,7 @@ def main():
     # Cap simultaneous inferences: enough concurrency to keep the GPU
     # busy, bounded so concurrent DirectML allocations can't exhaust
     # memory when many workers burst at once.
-    gpu_sem = ctx.Semaphore(min(args.workers, 8))
+    gpu_sem = ctx.Semaphore(min(args.workers, 4))
     procs = [ctx.Process(target=_worker_main,
                          args=(i, job_q, mft_q, args.out,
                                args.emit_qnt, batch, gpu_sem))

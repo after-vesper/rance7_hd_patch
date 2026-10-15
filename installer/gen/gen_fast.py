@@ -152,14 +152,33 @@ def gpu_worker():
         batched = [b for b in batch if b[3] is None]
         if batched:
             a = np.stack([b[2] for b in batched])
-            res = s.run(None, {inp: a})[0]
+            res = s.run(None, {inp: a})[0].astype(np.float32)
+            np.multiply(res, np.float32(255), out=res)
+            np.clip(res, 0, 255, out=res)
             for (jid, ti, _, _), o in zip(batched, res):
-                o = np.transpose(o, (1, 2, 0))[:, :, ::-1].copy()
-                done_q.put((jid, ti, np.clip(o * 255, 0, 255)
-                            .astype(np.uint8)))
-        for jid, ti, arr, dims in singles:
-            o = ga.infer_tile(arr, inp, s)
-            done_q.put((jid, ti, np.asarray(o)))
+                o = np.transpose(o, (1, 2, 0))[:, :, ::-1]
+                done_q.put((jid, ti, o.astype(np.uint8)))
+        # whole-frame jobs arrive at native dims — group same shapes
+        # into one batched run instead of one dispatch per image
+        by_dims = {}
+        for it in singles:
+            by_dims.setdefault(it[3], []).append(it)
+        for dims, grp in by_dims.items():
+            if len(grp) == 1:
+                jid, ti, arr, _ = grp[0]
+                done_q.put((jid, ti,
+                            np.asarray(ga.infer_tile(arr, inp, s))))
+                continue
+            u = np.stack([g[2] for g in grp])
+            a = np.transpose(u[:, :, :, ::-1], (0, 3, 1, 2))
+            a = (a.astype(np.float32)
+                 * np.float32(1.0 / 255)).astype(np.float16)
+            res = s.run(None, {inp: a})[0].astype(np.float32)
+            np.multiply(res, np.float32(255), out=res)
+            np.clip(res, 0, 255, out=res)
+            for (jid, ti, _, _), o in zip(grp, res):
+                o = np.transpose(o, (1, 2, 0))[:, :, ::-1]
+                done_q.put((jid, ti, o.astype(np.uint8)))
 
 
 def _finish_err(fut):
@@ -238,9 +257,8 @@ def producer(job_specs, out_dir, meta, stats):
                 cv.paste(si.convert('RGBA'), ((cw - w) // 2, (ch - h) // 2))
                 inp_im = cv.convert('RGB')
             W2, H2 = inp_im.size
-            tiles = ga.split_grid(inp_im, TILE, TILE, OV)
-            if not any(row[2] for row in tiles):
-                # sub-overlap: single native-size inference (raw HWC RGB)
+            if ga.fits_whole(W2, H2):
+                # whole-frame: single native-size inference (raw HWC RGB)
                 arr = np.asarray(inp_im)
                 jobs[jid] = {'si': si, 'recipe': rec, 'name': fn,
                              'arch': arch, 'var': var, 'src': at,
