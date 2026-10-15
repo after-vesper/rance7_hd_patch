@@ -566,6 +566,25 @@ public static class HdPatch
         return m.Success ? int.Parse(m.Value) : -1;
     }
 
+    /// <summary>Map of entry name -> data size for an .ald.</summary>
+    public static Dictionary<string, int> AldEntrySizes(string path)
+    {
+        using (var fs = new FileStream(path, FileMode.Open,
+                   FileAccess.Read, FileShare.Read))
+        {
+            var head = new byte[256];
+            fs.Read(head, 0, 256);
+            int ptrSecs = U24(head, 0);
+            var ptable = new byte[ptrSecs * 256];
+            fs.Seek(0, SeekOrigin.Begin);
+            fs.Read(ptable, 0, ptable.Length);
+            var map = new Dictionary<string, int>();
+            foreach (var e in AldEntries(ptable, fs))
+                map[e.Name] = e.Dsize;
+            return map;
+        }
+    }
+
     /// <summary>List entry names of an .ald in pointer-table order.</summary>
     public static List<string> ListAldNames(string path)
     {

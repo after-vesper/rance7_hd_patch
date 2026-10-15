@@ -428,6 +428,91 @@ function Repack-Archive([string]$aldPath, [string]$arcName, [string]$dir, [int]$
                 $arcName, $res[0], $res[1], $res[2])
 }
 
+# ---------- archive size rebalance ----------
+# The engine seeks into .ald volumes via a signed 32-bit byte offset, so
+# entries starting at/above 0x80000000 are unreachable (they silently
+# render nothing). Generated payloads can push Rance7GM.ald past the
+# limit; when the projection exceeds the threshold below, the biggest
+# payloads are moved into the GA payload dirs before repacking. GA has
+# plenty of headroom and the link-table redirect further down is computed
+# from whatever the GA dirs contain, so no other step needs to know.
+$AldSeekLimit = 0x80000000L
+$AldTarget    = 0x7F000000L   # stop ~33 MB under the hard limit
+$gmOrigSz = [HdPatch]::AldEntrySizes((Join-Path $bakDir 'Rance7GM.ald'))
+$gaOrigNm = [Collections.Generic.HashSet[string]]::new(
+    [string[]]([HdPatch]::ListAldNames((Join-Path $bakDir 'Rance7GA.ald'))))
+
+$gmPl = @{}   # name -> total payload bytes staged for GM
+foreach ($s in @('shared', $assetSet)) {
+    foreach ($base in @($genDir, $dataDir)) {
+        $d = Join-Path $base "GM\$s"
+        if (-not (Test-Path $d)) { continue }
+        foreach ($f in (Get-ChildItem $d -File |
+                       Where-Object { $_.Extension -ne '.json' })) {
+            if (-not $gmPl.ContainsKey($f.Name)) { $gmPl[$f.Name] = 0L }
+            $gmPl[$f.Name] += $f.Length   # shared+variant override same slot
+        }
+    }
+}
+# projected GM size ~= originals not overridden + staged payloads
+# + ~176 B per entry of entry header/alignment padding
+$gmProj = 0L
+foreach ($kv in $gmOrigSz.GetEnumerator()) {
+    if (-not $gmPl.ContainsKey($kv.Key)) { $gmProj += $kv.Value }
+}
+foreach ($f in ($gmPl.Keys)) { $gmProj += $gmPl[$f] }
+$gmProj += 176L * ($gmOrigSz.Count + 64)
+Write-Host ("  projected Rance7GM.ald size: {0:N0} MB" -f ($gmProj / 1MB))
+
+if ($gmProj -gt $AldTarget) {
+    # biggest payloads first; move every staged copy of the name
+    # (shared/variant) so no GM dir retains a payload for it
+    # name -> staged files (a name may sit in both shared and variant dirs)
+    $byName = @{}
+    foreach ($s in @('shared', $assetSet)) {
+        foreach ($base in @($genDir, $dataDir)) {
+            $d = Join-Path $base "GM\$s"
+            if (-not (Test-Path $d)) { continue }
+            foreach ($f in (Get-ChildItem $d -File |
+                           Where-Object { $_.Extension -ne '.json' })) {
+                if (-not $byName.ContainsKey($f.Name)) {
+                    $byName[$f.Name] = @{
+                        Size = 0L; Files = [Collections.Generic.List[object]]::new() }
+                }
+                $byName[$f.Name].Size += $f.Length
+                $byName[$f.Name].Files.Add(
+                    @{ File = $f; Var = $s; Base = $base })
+            }
+        }
+    }
+    # biggest payloads first; move every staged copy of the name
+    # (shared/variant) so no GM dir retains a payload for it
+    $moved = 0
+    $movedBytes = 0L
+    $names = $byName.Keys | Sort-Object { $byName[$_].Size } -Descending
+    foreach ($nm in $names) {
+        if ($gmProj -le $AldTarget) { break }
+        if ($gaOrigNm.Contains($nm)) { continue }  # GA override would
+            # keep the GM link row -> GM slot must stay authoritative
+        foreach ($o in $byName[$nm].Files) {
+            $dstDir = Join-Path $o.Base ("GA\" + $o.Var)
+            New-Item -Force -ItemType Directory $dstDir | Out-Null
+            Move-Item -Force $o.File.FullName (Join-Path $dstDir $o.File.Name)
+        }
+        $orig = 0L
+        if ($gmOrigSz.ContainsKey($nm)) { $orig = $gmOrigSz[$nm] }
+        $gmProj -= ($byName[$nm].Size - $orig)
+        $moved++
+        $movedBytes += $byName[$nm].Size
+    }
+    Write-Host ("  rebalanced: moved {0} payloads GM -> GA ({1:N0} MB), GM now ~{2:N0} MB" -f $moved, ($movedBytes / 1MB), ($gmProj / 1MB))
+    if ($gmProj -gt $AldTarget) {
+        Write-Host ("  ! WARNING: projected GM still above the safe" +
+                    " threshold - entries past 2 GB may not render") `
+            -ForegroundColor Yellow
+    }
+}
+
 # GA must be repacked first: 694 CG entries were relocated GM -> GA in the
 # HD set, so every archive's global link table must point the moved file
 # numbers at their new GA positions.
@@ -462,6 +547,19 @@ Write-Host ("  link rows redirected to GA: {0}" -f $movedRows.Count)
 Write-Host ""
 Write-Host "[4/5] Rance7GM.ald - applying HD assets (this copies ~1-2 GB) ..."
 Repack-Archive $gmPath 'Rance7GM.ald' 'GM' $mj.archives.'Rance7GM.ald'.disk $movedRows
+
+# hard ceiling check: the engine's signed 32-bit seek cannot reach
+# entries at/above 0x80000000, so an oversized volume means invisible
+# assets - warn loudly rather than leave a silently broken install
+foreach ($ald in @($gaPath, $gmPath)) {
+    $sz = (Get-Item $ald).Length
+    if ($sz -ge $AldSeekLimit) {
+        Write-Host ("  ! WARNING: {0} is {1:N0} bytes - over the engine's" +
+                    " 2 GB read limit; its tail entries will not render." +
+                    " Uninstall and report this." -f
+                    (Split-Path $ald -Leaf), $sz) -ForegroundColor Red
+    }
+}
 
 # NOTE: Rance7BA.ald / Rance7WA.ald link tables must stay byte-identical.
 # Their rows map BGM/SE file numbers to entries inside the SAME archive -
