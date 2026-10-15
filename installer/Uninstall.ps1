@@ -165,8 +165,8 @@ if (Test-Path $cacheDir) {
     $sz = [math]::Round(
         ((Get-ChildItem $cacheDir -Recurse -File -ErrorAction SilentlyContinue |
           Measure-Object Length -Sum).Sum / 1GB), 1)
-    $ans = Read-Host ("  HDキャッシュ 'hd_cache'（{0} GB）を削除しますか？ " +
-                      "残すと再インストールが一瞬です [y/N]" -f $sz)
+    $ans = Read-Host ("  HD素材キャッシュ 'hd_cache'（{0} GB）を削除しますか？ " +
+                      "残すと次回インストールでAI生成工程をスキップできます [y/N]" -f $sz)
     if ($ans -match '^(y|yes)$') {
         Remove-Item -Recurse -Force $cacheDir -ErrorAction SilentlyContinue
         if (Test-Path $cacheDir) {
@@ -176,7 +176,7 @@ if (Test-Path $cacheDir) {
             Write-Host "  hd_cache を削除しました" -ForegroundColor DarkGray
         }
     } else {
-        Write-Host "  hd_cache は残しました（再インストール時に再利用されます）" `
+        Write-Host "  hd_cache を残しました（次回インストールで生成を再利用します）" `
             -ForegroundColor DarkGray
     }
 }

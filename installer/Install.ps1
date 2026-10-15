@@ -277,7 +277,7 @@ if (-not (Test-Path $pyExe)) { Fail "インストーラーのファイルが不�
 
 Write-Host ""
 Write-Host "[1/5] HD素材の生成 - ゲーム内画像をAIで2倍化 ..." -ForegroundColor Cyan
-Write-Host "      DirectML対応GPUなら数分、再インストール時はキャッシュで高速です"
+Write-Host "      DirectML対応GPUなら数分。再インストール時は生成済み素材を再利用します"
 $pyArgs = @(
     (Join-Path $Root 'gen\gen_ring.py'),
     '--emit-qnt',
