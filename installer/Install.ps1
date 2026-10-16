@@ -710,9 +710,9 @@ try {
             ("AIN 补丁失败: $($_.Exception.Message)`n原文件未受影响（备份: $bakDir）") `
             ("AIN patch failed: $($_.Exception.Message)`nOriginal file untouched (backup: $bakDir)"))
 }
-Write-Host ((L "  パッチ箇所: {0} 件を解決（適用済 {1} / 緩和 {2} / 曖昧 {3} / 関数欠落 {4}）" `
-               "  补丁位置: 已解决 {0} 处（已应用 {1} / 宽松 {2} / 歧义 {3} / 函数缺失 {4}）" `
-               "  Patch sites: {0} resolved (already {1} / relaxed {2} / ambiguous {3} / missing-func {4})") -f
+Write-Host ((L "  パッチ箇所: {0} 件を適用（適用済 {1} / 代替適用 {2} / スキップ {3} / 対象外関数 {4}）" `
+               "  补丁位置: 已应用 {0} 处（已应用 {1} / 替代应用 {2} / 跳过 {3} / 无此函数 {4}）" `
+               "  Patch sites: {0} applied (already {1} / fallback {2} / skipped {3} / func absent {4})") -f
             $r.Ok, $r.AlreadyPatched, $r.Relaxed, $r.Ambiguous, $r.MissingFunc)
 if ($r.Writes -eq 0 -and $r.AlreadyPatched -eq 0) {
     Remove-Item $tmpAin -ErrorAction SilentlyContinue
@@ -721,9 +721,9 @@ if ($r.Writes -eq 0 -and $r.AlreadyPatched -eq 0) {
             ("No patch sites found - cannot apply to this AIN.`nDetails:`n  $($r.Problems -join "`n  ")"))
 }
 if ($r.Ambiguous -gt 0 -or $r.MissingFunc -gt 0) {
-    Write-Host (L "  注意: 一部の箇所に軽微な問題があります（処理は続行）:" `
-                  "  注意: 部分位置存在轻微问题（继续处理）:" `
-                  "  Note: minor issues at some sites (continuing):") -ForegroundColor Yellow
+    Write-Host (L "  ※スキップは主にゲームバージョン間の差異によるもので、動作上の問題ではありません:" `
+                  "  ※跳过的部分主要是游戏版本间的差异，并非故障:" `
+                  "  Skipped sites are mostly build differences between game versions, not a malfunction:") -ForegroundColor DarkGray
     $r.Problems | Select-Object -First 8 | ForEach-Object { Write-Host "    ! $_" }
 }
 # sanity check the produced AIN parses
