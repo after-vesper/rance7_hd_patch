@@ -63,8 +63,12 @@ NO_GPU = {'nearest', 'lanczos', 'manual'}
 _LANG = os.environ.get('GEN_LANG', 'ja')
 
 
-def L(ja, zh):
-    return zh if _LANG == 'zh' else ja
+def L(ja, zh, en=None):
+    if _LANG == 'zh':
+        return zh
+    if _LANG == 'en' and en is not None:
+        return en
+    return ja
 
 # Console output is shared between the drain thread's in-place progress
 # bar and plain status prints from the main thread; a lock + line-length
@@ -400,15 +404,19 @@ def calibrate_batch(s, inp):
     prov = s.get_providers()[0] if s.get_providers() else '?'
     rate = 1.0 / best_t if best_t else 0.0
     _log(L('  GPU測定: provider=%s バッチ=%d（%.1f タイル/秒）%s',
-           '  GPU 测量: provider=%s 批次=%d（%.1f 图块/秒）%s')
+           '  GPU 测量: provider=%s 批次=%d（%.1f 图块/秒）%s',
+           '  GPU benchmark: provider=%s batch=%d (%.1f tiles/s)%s')
          % (prov, best_n, rate,
             '' if best_t else L(' [provider検出失敗]',
-                                ' [provider 检测失败]')))
+                                ' [provider 检测失败]',
+                                ' [provider detection failed]')))
     if rate and rate < 3.0:
         _log(L('  警告: 推論がかなり遅いようです（CPU実行？）。'
                'このPCでは生成にかなり時間がかかる見込みです',
                '  警告: 推理速度很慢（可能是用 CPU 运行的？）。'
-               '此电脑上的生成预计需要较长时间'))
+               '此电脑上的生成预计需要较长时间',
+               '  Warning: inference seems quite slow (running on CPU?). '
+               'Generation will take a long time on this PC'))
     return BATCH
 
 
@@ -500,7 +508,9 @@ def main():
                 print(L('  空きメモリの都合でワーカー数を %d に制限します'
                         '（空き %d MB）',
                         '  因可用内存限制，将工作进程数调整为 %d'
-                        '（可用 %d MB）')
+                        '（可用 %d MB）',
+                        '  Limiting workers to %d due to free memory'
+                        ' (%d MB free)')
                       % (args.workers, avail), flush=True)
     # export install-mode settings before spawning workers (spawned
     # processes re-import modules and pick these up from the env)
@@ -527,8 +537,10 @@ def main():
         if ga.MODEL and os.path.exists(ga.MODEL):
             tag += ':' + _sha256_file(ga.MODEL)
         os.environ['GEN_CACHE_TAG'] = tag
-        _log(L('  素材キャッシュ: %s', '  素材缓存: %s') % cache_dir)
-    _log(L('  並列ワーカー: %d', '  并行工作进程: %d') % args.workers)
+        _log(L('  素材キャッシュ: %s', '  素材缓存: %s',
+               '  Asset cache: %s') % cache_dir)
+    _log(L('  並列ワーカー: %d', '  并行工作进程: %d',
+           '  Parallel workers: %d') % args.workers)
 
     mani = gp.load_manifest()
     order_map = {'vanilla': ['vanilla', 'jp'], 'jp': ['jp', 'vanilla'],
@@ -589,7 +601,8 @@ def main():
             specs.append((arch, var, fn, rec, order_map[var]))
     if args.limit:
         specs = specs[:args.limit]
-    _log(L('  生成対象: %d 件', '  生成对象: %d 个') % len(specs))
+    _log(L('  生成対象: %d 件', '  生成对象: %d 个',
+           '  Assets to generate: %d') % len(specs))
 
     ctx = mp.get_context('spawn')
     job_q = ctx.Queue()
@@ -686,11 +699,13 @@ def main():
     el = time.time() - t_gpu
     if n_tiles:
         _log(L('  GPU推論: %d タイル / %.1f秒（%.1f タイル/秒）',
-               '  GPU 推理: %d 图块 / %.1f 秒（%.1f 图块/秒）')
+               '  GPU 推理: %d 图块 / %.1f 秒（%.1f 图块/秒）',
+               '  GPU inference: %d tiles / %.1fs (%.1f tiles/s)')
              % (n_tiles, el, n_tiles / el))
     if stage_ms and os.environ.get('GEN_STATS'):
         _log(L('  ステージ時間 ms/件（ワーカー合計）: ',
-               '  各阶段耗时 ms/项（工作进程合计）: ') + ', '.join(
+               '  各阶段耗时 ms/项（工作进程合计）: ',
+               '  Stage time ms/item (workers total): ') + ', '.join(
             '%s=%.0f' % (k, v / max(1, expect))
             for k, v in sorted(stage_ms.items())))
 
@@ -703,7 +718,8 @@ def main():
     hits = sum(1 for m in meta.values() for i in m.values()
                if i.get('cache'))
     _log(L('  完了: %d 件生成（うちキャッシュ再利用 %d 件）/ エラー %d 件',
-           '  完成: 已生成 %d 个（其中复用缓存 %d 个）/ 错误 %d 个')
+           '  完成: 已生成 %d 个（其中复用缓存 %d 个）/ 错误 %d 个',
+           '  Done: %d generated (%d from cache) / %d errors')
          % (n_done, hits, n_err))
 
 

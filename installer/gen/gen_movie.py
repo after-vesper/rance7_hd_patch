@@ -39,8 +39,12 @@ import gen_audit as ga  # noqa: E402
 _LANG = os.environ.get('GEN_LANG', 'ja')
 
 
-def L(ja, zh):
-    return zh if _LANG == 'zh' else ja
+def L(ja, zh, en=None):
+    if _LANG == 'zh':
+        return zh
+    if _LANG == 'en' and en is not None:
+        return en
+    return ja
 
 
 # movie/*.alm is globbed at run time so language-specific extras
@@ -231,11 +235,13 @@ def main():
                 with open(dst, 'wb') as o:
                     o.write(blob)
                 print(L('  %s: キャッシュから再利用',
-                        '  %s: 从缓存复用') % name)
+                        '  %s: 从缓存复用',
+                        '  %s: reused from cache') % name)
                 n_gen += 1
                 continue
         print(L('  %s: HD化して再エンコード中 ...',
-                '  %s: 正在高清化并重新编码 ...') % name)
+                '  %s: 正在高清化并重新编码 ...',
+                '  %s: upscaling to HD and re-encoding ...') % name)
         os.makedirs(a.dst_dir, exist_ok=True)
         tmp = dst + '.tmp'
         _upscale(a.ffmpeg, src, tmp, a.bitrate, name, a.max_width)
@@ -248,11 +254,13 @@ def main():
                 os.replace(hit + '.tmp', hit)
             except OSError:
                 pass  # cache is an optimisation; never fail the job
-    print(L('  ムービー生成: %d 本', '  影片生成: %d 部') % n_gen)
+    print(L('  ムービー生成: %d 本', '  影片生成: %d 部',
+            '  Movies generated: %d') % n_gen)
     if n_gen == 0:
         print(L('  （バックアップに movie/*.alm が無いため'
                 '何もしませんでした）',
-                '  （备份中没有 movie/*.alm，未执行任何操作）'))
+                '  （备份中没有 movie/*.alm，未执行任何操作）',
+                '  (no movie/*.alm in the backup - nothing to do)'))
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 # 战国兰斯 HD 补丁
 
-[日本語版 README](README.md)
+[日本語版 README](README.md) / [English README](README.en.md)
 
 将 Steam 版 **战国兰斯 (Sengoku Rance / Rance 7)** 的画面从固定的 800×600 提升到 **1600×1200** 高清分辨率的补丁。不仅将绘制坐标与布局放大两倍，游戏内的图像素材也会通过 AI 超分辨率进行高清化。
 

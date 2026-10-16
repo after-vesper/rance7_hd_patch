@@ -25,8 +25,12 @@ import qnt_fast
 _LANG = os.environ.get('GEN_LANG', 'ja')
 
 
-def L(ja, zh):
-    return zh if _LANG == 'zh' else ja
+def L(ja, zh, en=None):
+    if _LANG == 'zh':
+        return zh
+    if _LANG == 'en' and en is not None:
+        return en
+    return ja
 
 
 def read_alk(d):
@@ -103,7 +107,8 @@ def main():
             with open(a.dst, 'wb') as o:
                 o.write(blob)
             print(L('  %s.alk: キャッシュから再利用',
-                    '  %s.alk: 从缓存复用') % label)
+                    '  %s.alk: 从缓存复用',
+                    '  %s.alk: reused from cache') % label)
             return
 
     recipes = json.load(open(a.recipes))
@@ -149,7 +154,8 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(a.dst)), exist_ok=True)
     write_alk(entries, a.dst)
     print(L('  %s.alk: 生成 %d コマ / 素通し %d / 計 %d エントリ',
-            '  %s.alk: 生成 %d 帧 / 原样保留 %d / 共 %d 项')
+            '  %s.alk: 生成 %d 帧 / 原样保留 %d / 共 %d 项',
+            '  %s.alk: %d frames generated / %d passthrough / %d entries')
           % (label, n_gen, n_pass, len(entries)))
     if ck is not None:
         try:
