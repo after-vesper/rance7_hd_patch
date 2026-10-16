@@ -145,6 +145,10 @@ def _upscale(ffmpeg, src, dst, bitrate, name, max_width):
     dec = subprocess.Popen([
         ffmpeg, '-v', 'error', '-i', src,
         '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], stdout=subprocess.PIPE)
+    # stderr is drained into a buffer rather than inherited: mpeg1video
+    # spams cosmetic warnings ("rc buffer underflow", "max bitrate
+    # possibly too small") that print at error level even under
+    # -v error; the output is only shown when the encode actually fails.
     enc = subprocess.Popen([
         ffmpeg, '-v', 'error', '-y',
         '-f', 'rawvideo', '-pix_fmt', 'gbrp', '-s', '%dx%d' % (dw, dh),
@@ -154,7 +158,12 @@ def _upscale(ffmpeg, src, dst, bitrate, name, max_width):
         '-c:v', 'mpeg1video', '-b:v', bitrate, '-maxrate', bitrate,
         '-bufsize', '3600k', '-g', '16', '-bf', '0',
         '-c:a', 'copy', '-f', 'vcd', dst],
-        stdin=subprocess.PIPE)
+        stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    enc_err = []
+    threading.Thread(
+        target=lambda: enc_err.extend(
+            enc.stderr.read().decode('utf-8', 'replace').splitlines()),
+        daemon=True).start()
 
     fsz = w * h * 3
     q = Queue(maxsize=64)
@@ -192,6 +201,8 @@ def _upscale(ffmpeg, src, dst, bitrate, name, max_width):
     enc.wait()
     _prog(name, n, total, t0, final=True)
     if enc.returncode != 0:
+        for line in enc_err[-20:]:
+            sys.stderr.write(line + '\n')
         raise RuntimeError('ffmpeg encode failed for %s' % src)
     print('    %d frames in %.0fs' % (n, time.perf_counter() - t0),
           flush=True)
