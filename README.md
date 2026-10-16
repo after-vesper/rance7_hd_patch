@@ -40,8 +40,10 @@ Steam 版 **戦国ランス (Sengoku Rance / Rance 7)** の画面を、固定の
 1. [リリースページ](https://github.com/after-vesper/rance7_hd_patch/releases/latest)から `SengokuRance_HDPatch.zip` をダウンロードし、任意の場所に展開します
 2. ゲームを終了した状態で、展開したフォルダ内の `Install.cmd` をダブルクリック — Steam のゲームフォルダを自動検出します
 3. ゲームフォルダが `Program Files` 配下にある場合は、管理者権限の確認(UAC)が出ます
-4. AIによるHD素材とOP/EDムービーの生成が始まります(DirectML 対応 GPU なら10分前後)
+4. AIによるHD素材とOP/EDムービーの生成が始まります
 5. 「HDパッチの適用が完了しました」と表示されたら完了です
+
+> **所要時間の参考値**: CPU: Ryzen 9 5900X / GPU: GeForce RTX 3070 Ti / RAM: 32 GB の環境で、初回インストール（素材約6,600枚 + ムービー2本の生成）は **約9分** でした。GPU 性能やムービーの本数で増減します。
 
 Steam 以外でインストールしている場合は、パスの入力を求められます。PowerShell から `-GameDir` で直接指定することもできます:
 

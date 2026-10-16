@@ -28,8 +28,10 @@
 1. 从[发布页面](https://github.com/after-vesper/rance7_hd_patch/releases/latest)下载 `SengokuRance_HDPatch.zip` 并解压到任意位置
 2. 关闭游戏后，双击解压文件夹中的 `Install.cmd` — 会自动检测 Steam 游戏目录
 3. 如果游戏文件夹位于 `Program Files` 下，会弹出管理员权限（UAC）确认
-4. 开始用 AI 生成 HD 素材与 OP/ED 影片（DirectML 兼容 GPU 约需 10 分钟）
+4. 开始用 AI 生成 HD 素材与 OP/ED 影片
 5. 显示「HD补丁安装完成」即安装成功
+
+> **安装时间参考**：在 Ryzen 9 5900X / GeForce RTX 3070 Ti / 32 GB 内存的环境下，首次安装（生成约 6,600 张素材 + 2 部影片）约需 **9 分钟**。实际时间取决于 GPU 性能和影片数量。
 
 如果不是通过 Steam 安装的，会提示输入游戏路径。也可以用 PowerShell 的 `-GameDir` 参数直接指定：
 

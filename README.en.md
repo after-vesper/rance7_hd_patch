@@ -40,8 +40,10 @@ The patch can be installed on any of the following (order does not matter):
 1. Download `SengokuRance_HDPatch.zip` from the [releases page](https://github.com/after-vesper/rance7_hd_patch/releases/latest) and extract it anywhere
 2. Close the game, then double-click `Install.cmd` in the extracted folder — your Steam game folder is detected automatically
 3. If the game folder is under `Program Files`, a UAC prompt for administrator rights appears
-4. AI generation of the HD assets and OP/ED movies begins (~10 minutes on a DirectML-capable GPU)
+4. AI generation of the HD assets and OP/ED movies begins
 5. When "HD patch installed." appears, you are done
+
+> **Install time (reference)**: on a Ryzen 9 5900X / GeForce RTX 3070 Ti / 32 GB RAM machine, a fresh install (generating ~6,600 assets + 2 movies) took **about 9 minutes**. Actual time varies with GPU power and the number of movies in your edition.
 
 For non-Steam installs you will be asked to enter the path. You can also specify it directly from PowerShell:
 

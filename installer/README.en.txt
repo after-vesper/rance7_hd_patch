@@ -31,7 +31,8 @@ affiliated with AliceSoft. Use it entirely at your own risk.
       Allow it if an administrator prompt appears)
  2. After a backup of the game is created automatically,
     AI generation of HD assets and the OP/ED movies begins
-    (~10 minutes on a DirectML-capable GPU)
+    (~10 minutes on a DirectML-capable GPU;
+      measured ~9 min on Ryzen 9 5900X + RTX 3070 Ti)
  3. When "HD patch installed." appears, you are done
 
 ------------------------------------------------------------
