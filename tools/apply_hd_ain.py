@@ -198,6 +198,10 @@ def ctx_match_at(ins, j, ctx, ci, site=None):
 def main():
     src, dst = sys.argv[1], sys.argv[2]
     dry = "--dry-run" in sys.argv
+    sites_json = SITES_JSON
+    for a in sys.argv[3:]:
+        if a.startswith("--sites="):
+            sites_json = a.split("=", 1)[1]
 
     data = open(src, "rb").read()
     enc = is_encrypted(data)
@@ -217,7 +221,7 @@ def main():
     for f in funcs:
         by_name.setdefault(f["name"], []).append(f)
 
-    sites = json.load(open(SITES_JSON, encoding="utf-8"))["sites"]
+    sites = json.load(open(sites_json, encoding="utf-8"))["sites"]
 
     # group sites by (func, signature) to handle repeated patterns by order
     stats = {"ok": 0, "missing_func": 0, "no_match": 0, "ambiguous": 0,

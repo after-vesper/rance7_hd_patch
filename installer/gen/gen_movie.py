@@ -55,10 +55,11 @@ def _sha256_file(path):
     return h.hexdigest()[:16]
 
 
-def _cache_key(src_path):
+def _cache_key(src_path, max_width):
     """Generator version + model identity + exact source bytes (same
-    scheme as gen_ring/gen_alk)."""
-    tag = 'v1:'
+    scheme as gen_ring/gen_alk). max_width is part of the key because it
+    changes the output."""
+    tag = 'v2:%d:' % max_width
     model = os.environ.get('GEN_MODEL')
     if model and os.path.exists(model):
         tag += _sha256_file(model)
@@ -121,11 +122,21 @@ def _prog(name, n, total, t0, final=False):
         print(line, flush=True)
 
 
-def _upscale(ffmpeg, src, dst, bitrate, name):
+def _upscale(ffmpeg, src, dst, bitrate, name, max_width):
     s = ga.sess()
     inp = s.get_inputs()[0].name
     w, h, fps, total = _probe(ffmpeg, src)
     dw, dh = w * 2, h * 2
+    # The English (Kagura) build ships a rebuilt PlayMovie.dll that renders
+    # via VMR-7/9/EVR windowless; its decoder/renderer path rejects MPEG-1
+    # frames wider than ~1184 px (74 macroblocks) — video goes black while
+    # audio keeps playing. --max-width caps the encoded width for such
+    # editions; the upscale still runs at 2x and ffmpeg scales down.
+    ow, oh = dw, dh
+    if max_width and dw > max_width:
+        ow = max_width & ~1
+        oh = (dh * ow // dw) & ~1
+    vf = ['-vf', 'scale=%d:%d:flags=lanczos' % (ow, oh)] if (ow, oh) != (dw, dh) else []
 
     dec = subprocess.Popen([
         ffmpeg, '-v', 'error', '-i', src,
@@ -135,6 +146,7 @@ def _upscale(ffmpeg, src, dst, bitrate, name):
         '-f', 'rawvideo', '-pix_fmt', 'gbrp', '-s', '%dx%d' % (dw, dh),
         '-framerate', fps, '-i', '-',
         '-i', src, '-map', '0:v:0', '-map', '1:a:0?',
+        ] + vf + [
         '-c:v', 'mpeg1video', '-b:v', bitrate, '-maxrate', bitrate,
         '-bufsize', '3600k', '-g', '16', '-bf', '0',
         '-c:a', 'copy', '-f', 'vcd', dst],
@@ -189,6 +201,10 @@ def main():
                     help='output directory for the HD .alm files')
     ap.add_argument('--ffmpeg', required=True, help='ffmpeg.exe path')
     ap.add_argument('--bitrate', default='12M')
+    ap.add_argument('--max-width', type=int, default=0,
+                    help='cap encoded width in px (even); used for the '
+                         'Kagura/English build whose rebuilt PlayMovie '
+                         'rejects MPEG-1 wider than ~1184 px')
     ap.add_argument('--cache-dir', default=None)
     a = ap.parse_args()
 
@@ -202,7 +218,7 @@ def main():
         ck = None
         if a.cache_dir:
             os.makedirs(a.cache_dir, exist_ok=True)
-            ck = _cache_key(src)
+            ck = _cache_key(src, a.max_width)
             hit = os.path.join(a.cache_dir, ck)
             try:
                 with open(hit, 'rb') as f:
@@ -218,11 +234,11 @@ def main():
                         '  %s: 从缓存复用') % name)
                 n_gen += 1
                 continue
-        print(L('  %s: 640x480 -> 1280x960 へアップスケール中 ...',
-                '  %s: 正在将 640x480 放大到 1280x960 ...') % name)
+        print(L('  %s: HD化して再エンコード中 ...',
+                '  %s: 正在高清化并重新编码 ...') % name)
         os.makedirs(a.dst_dir, exist_ok=True)
         tmp = dst + '.tmp'
-        _upscale(a.ffmpeg, src, tmp, a.bitrate, name)
+        _upscale(a.ffmpeg, src, tmp, a.bitrate, name, a.max_width)
         os.replace(tmp, dst)
         n_gen += 1
         if ck is not None:

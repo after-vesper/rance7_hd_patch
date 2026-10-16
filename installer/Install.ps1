@@ -235,9 +235,21 @@ $knownAin = @{
     'B4459F0637F7E1B0' = '通常版（Steam・未改造）'
     '7CB8B11941A14007' = 'JPパッチ適用済み'
     'BF84072AAD157812' = '中国語版（簡体字）'
+    'A6B3693708144241' = '英語版（Kagura/Steam）'
 }
 $variant = $knownAin[$ainHash]
 if (-not $variant) { $variant = "改造済み/非公式パッチ版 (ain hash $ainHash)" }
+$isEn = ($ainHash -eq 'A6B3693708144241')
+if ($isEn) {
+    # the en build rewrote its message-UI functions during localization;
+    # it needs the en-anchored site set produced by tools/en_export_sites.py
+    $sitesEn = Join-Path $dataDir 'hd_sites_en.json'
+    if (-not (Test-Path $sitesEn)) {
+        Fail (L "インストーラーのファイルが不足しています: $sitesEn" `
+                "安装程序文件缺失: $sitesEn")
+    }
+    $sites = $sitesEn
+}
 
 # Archive layouts differ by language build:
 #   jp/en: Rance7GM.ald is the live CG archive, Rance7GA.ald holds the
@@ -270,6 +282,8 @@ if ($isZh) {
     $gmHash = (Sha256 $gmPath).Substring(0, 12)
     if ($gmHash -eq '27D55DF49209') { $assetSet = 'jp' }
     elseif ($gmHash -eq '0B20D110235A') { $assetSet = 'vanilla' }
+    elseif ($gmHash -eq '885D68EE73E8') { $assetSet = 'vanilla' }  # en build:
+        # its GM content is the same all-ages set as the zh/vanilla line
     else { $assetSet = 'jp' }   # modified/unknown ald: jp assets were built on jp base
 }
 
@@ -321,6 +335,10 @@ $looseFiles = @()
 $looseFiles += Get-ChildItem $GameDir -Filter 'AliceLogo*.alk' -File -ErrorAction SilentlyContinue
 $looseFiles += Get-ChildItem (Join-Path $GameDir 'DLL') -Filter 'AliceLogo*.dll' -File -ErrorAction SilentlyContinue
 $looseFiles += Get-ChildItem (Join-Path $GameDir 'movie') -Filter '*.alm' -File -ErrorAction SilentlyContinue
+# en build: PlayMovie.dll gets the VMR-7 renderer disabled (see below)
+if ($isEn) {
+    $looseFiles += Get-Item (Join-Path $GameDir 'DLL\PlayMovie.dll') -ErrorAction SilentlyContinue
+}
 foreach ($f in $looseFiles) {
     $rel = $f.FullName.Substring($GameDir.Length).TrimStart('\', '/')
     $dst = Join-Path $bakDir $rel
@@ -518,6 +536,43 @@ foreach ($dllSrc in (Get-ChildItem (Join-Path $bakDir 'DLL') -Filter 'AliceLogo*
                   "  $($dllSrc.Name) 已修补 $dllChanged 处（800x600 -> 1600x1200）")
 }
 
+# en build only: PlayMovie.dll (Kagura's rebuilt player) creates the
+# first available renderer in VMR-7 -> VMR-9 -> EVR order. VMR-7's
+# windowless path cannot display MPEG-1 wider than ~1184 px (74 MBs):
+# audio plays but the video stays black. Zeroing the VMR-7 CLSID makes
+# its CoCreateInstance fail so the code falls through to VMR-9/EVR,
+# which render 1280x960 fine (verified). If the pattern is absent the
+# DLL is left untouched and movies fall back to a capped width below.
+$enMoviePatched = $false
+$pmBak = Join-Path $bakDir 'DLL\PlayMovie.dll'
+if ($isEn -and (Test-Path $pmBak)) {
+    $pmBytes = [IO.File]::ReadAllBytes($pmBak)
+    # raw bytes of CLSID_VideoMixingRenderer {B87BEB7B-8D29-423F-AE4D-6582C10175AC}
+    $vmr7 = [byte[]](0x7b,0xeb,0x7b,0xb8,0x29,0x8d,0x3f,0x42,
+                     0xae,0x4d,0x65,0x82,0xc1,0x01,0x75,0xac)
+    $hits = @()
+    for ($i = 0; $i -le $pmBytes.Length - 16; $i++) {
+        $m = $true
+        for ($j = 0; $j -lt 16; $j++) {
+            if ($pmBytes[$i + $j] -ne $vmr7[$j]) { $m = $false; break }
+        }
+        if ($m) { $hits += $i }
+    }
+    if ($hits.Count -eq 1) {
+        for ($j = 0; $j -lt 16; $j++) { $pmBytes[$hits[0] + $j] = 0 }
+        $pmOut = Join-Path $genDir 'files\DLL\PlayMovie.dll'
+        New-Item -Force -ItemType Directory (Split-Path $pmOut) | Out-Null
+        [IO.File]::WriteAllBytes($pmOut, $pmBytes)
+        $enMoviePatched = $true
+        Write-Host (L "  PlayMovie.dll にパッチ（VMR-7無効化 -> VMR-9/EVRでHDムービー再生）" `
+                      "  已修补 PlayMovie.dll（禁用 VMR-7 -> 经 VMR-9/EVR 播放 HD 影片）")
+    } else {
+        Write-Host (L "  ! PlayMovie.dll のパターンが想定と異なります（$($hits.Count)箇所）- ムービーは1152px幅に制限します" `
+                      "  ! PlayMovie.dll 的模式与预期不符（$($hits.Count)处）- 影片将限制为1152px宽") `
+            -ForegroundColor Yellow
+    }
+}
+
 # movie/*.alm: regenerate the OP/ED at 1280x960 from the backed-up
 # originals (MPEG-1 video + MP2 audio program stream, same profile as
 # the source so the stock DirectShow path plays it). Optional: needs
@@ -530,9 +585,15 @@ if ((Test-Path $movSrcDir) -and
     if (Test-Path $ffmpegExe) {
         Write-Host (L "  OP/EDムービーをHD化しています（数分かかります） ..." `
                       "  正在高清化 OP/ED 影片（需要几分钟） ...")
-        & $pyExe (Join-Path $Root 'gen\gen_movie.py') `
-            --src-dir $bakDir --dst-dir $movOutDir `
-            --ffmpeg $ffmpegExe --cache-dir $cacheDir
+        # The Kagura/English build's rebuilt PlayMovie.dll fails to render
+        # MPEG-1 wider than ~1184 px (black video, audio ok). When the
+        # VMR-7-disable patch above could not be applied, cap the movie
+        # width at 1152 px as a safe fallback.
+        $movArgs = @((Join-Path $Root 'gen\gen_movie.py'),
+            '--src-dir', $bakDir, '--dst-dir', $movOutDir,
+            '--ffmpeg', $ffmpegExe, '--cache-dir', $cacheDir)
+        if ($isEn -and -not $enMoviePatched) { $movArgs += @('--max-width', '1152') }
+        & $pyExe @movArgs
         if ($LASTEXITCODE -ne 0) {
             Write-Host (L "  ! ムービー生成に失敗しました - 元のムービーのまま続行します" `
                           "  ! 影片生成失败 - 继续使用原影片") `
@@ -912,6 +973,13 @@ foreach ($f in $mj.files) {
     $dst = Join-Path $GameDir $f.dst
     Copy-Item -Force $src $dst
     Write-Host (L "  $($f.dst) -> 差し替え完了" "  $($f.dst) -> 替换完成")
+}
+
+# generated PlayMovie.dll (en VMR-7 disable) lands next to the original
+$pmGen = Join-Path $genDir 'files\DLL\PlayMovie.dll'
+if (Test-Path $pmGen) {
+    Copy-Item -Force $pmGen (Join-Path $GameDir 'DLL\PlayMovie.dll')
+    Write-Host (L "  DLL\PlayMovie.dll -> パッチ適用完了" "  DLL\PlayMovie.dll -> 补丁应用完成")
 }
 
 # generated movies land next to the originals (absent when generation
