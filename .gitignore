@@ -19,7 +19,15 @@ dist/
 *.tmp
 
 # Tool binaries — downloaded at setup time (see AGENTS.md), do not commit
-tools/
+tools/*.exe
+# Local throwaway scripts / patch variants kept in tools/
+tools/_*.py
+tools/*.bak_*
+tools/ain_adv_patch_[A-Z].py
+
+# Local working area (test installs, dumps, generated AINs — may contain
+# copyrighted game data)
+work/
 
 # Extracted/derived game dialogue (copyrighted) — local working copies only
 src/*_prologue_*.txt
