@@ -66,14 +66,18 @@ function Sha256([string]$p) { (Get-FileHash -Algorithm SHA256 $p).Hash }
 # the en (Kagura) build is identified by its stock ain hash. Once the
 # ain is HD-patched its hash no longer matches stock, so the state file
 # written at install time carries the original hash.
-$script:EnAinHash = 'A6B3693708144241'
+$script:EnAinHashes = @('A6B3693708144241',  # Kagura/Steam (all-ages)
+                        'A24F5433C3CFA130')  # Kagura/Steam + adult patch
+function Test-EnAinHash([string]$h) {
+    return $script:EnAinHashes -contains $h.ToUpper()
+}
 function Get-GameLang([string]$dir) {
     if (Test-Path (Join-Path $dir 'Rance7GB.ald')) { return 'zh' }
     $st = Join-Path $dir 'hd_patch.state'
     if (Test-Path $st) {
         $s = Get-Content $st -Raw -ErrorAction SilentlyContinue
         if ($s -match 'ain=([0-9A-Fa-f]+)') {
-            return $(if ($Matches[1] -eq $script:EnAinHash) { 'en' }
+            return $(if (Test-EnAinHash $Matches[1]) { 'en' }
                      else { 'ja' })
         }
         # state files from before the ain= field existed: the recorded
@@ -81,13 +85,14 @@ function Get-GameLang([string]$dir) {
         if ($s -match 'backup=([^;\r\n]+)') {
             $ba = Join-Path $Matches[1] 'Rance7.ain'
             if ((Test-Path $ba) -and
-                (Sha256 $ba).Substring(0, 16) -eq
-                    $script:EnAinHash) { return 'en' }
+                (Test-EnAinHash ((Sha256 $ba).Substring(0, 16)))) {
+                return 'en'
+            }
         }
     }
     $a = Join-Path $dir 'Rance7.ain'
     if ((Test-Path $a) -and
-        (Sha256 $a).Substring(0, 16) -eq $script:EnAinHash) { return 'en' }
+        (Test-EnAinHash ((Sha256 $a).Substring(0, 16)))) { return 'en' }
     return $null   # unknown build - keep the OS-culture guess
 }
 
@@ -286,12 +291,13 @@ $knownAin = @{
     '7CB8B11941A14007' = (L 'JPパッチ適用済み' '已应用 JP 补丁' 'JP patch applied')
     'BF84072AAD157812' = (L '中国語版（簡体字）' '简体中文版' 'Simplified Chinese')
     'A6B3693708144241' = (L '英語版（Kagura/Steam）' '英文版（Kagura/Steam）' 'English (Kagura/Steam)')
+    'A24F5433C3CFA130' = (L '英語版＋アダルトパッチ適用済み' '英文版＋成人补丁已应用' 'English (Kagura/Steam) + adult patch')
 }
 $variant = $knownAin[$ainHash]
 if (-not $variant) { $variant = (L "改造済み/非公式パッチ版 (ain hash $ainHash)" `
                                   "改造済み/非官方补丁版 (ain hash $ainHash)" `
                                   "modified/unofficial patch (ain hash $ainHash)") }
-$isEn = ($ainHash -eq $script:EnAinHash)
+$isEn = Test-EnAinHash $ainHash
 if ($isEn) {
     # the en build rewrote its message-UI functions during localization;
     # it needs the en-anchored site set produced by tools/en_export_sites.py
@@ -340,8 +346,15 @@ if ($isZh) {
     elseif ($gmHash -eq '0B20D110235A') { $assetSet = 'vanilla' }
     elseif ($gmHash -eq '885D68EE73E8') { $assetSet = 'vanilla' }  # en build:
         # its GM content is the same all-ages set as the zh/vanilla line
+    elseif ($gmHash -eq '8F09183896E6') { $assetSet = 'jp' }       # en + adult
+        # patch: its GM carries the R18 set, which the jp payloads cover
     else { $assetSet = 'jp' }   # modified/unknown ald: jp assets were built on jp base
 }
+
+# 'jp' payloads are the R18 CG set; on an en install they are pulled in
+# by the adult patch, so show a name users recognize instead of 'jp'.
+$assetSetDisp = if ($isEn -and $assetSet -eq 'jp') { 'adult' }
+                else { $assetSet }
 
 Write-Host ""
 Write-Host ((L "  対象         : " "  目标         : " `
@@ -349,7 +362,7 @@ Write-Host ((L "  対象         : " "  目标         : " `
 Write-Host ((L "  AINバリアント: " "  AIN版本      : " `
                "  AIN variant  : ") + $variant)
 Write-Host ((L "  素材セット   : " "  素材集       : " `
-               "  Asset set    : ") + $assetSet)
+               "  Asset set    : ") + $assetSetDisp)
 Write-Host ""
 
 # ---------- free space check (repack needs orig + new archive) ----------

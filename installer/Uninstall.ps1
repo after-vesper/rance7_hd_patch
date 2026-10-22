@@ -30,14 +30,18 @@ function Sha256([string]$p) { (Get-FileHash -Algorithm SHA256 $p).Hash }
 # (Kagura) is its ain hash. The installed ain is patched so its hash
 # differs - the state file recorded at install time carries the
 # original. Failing both, the chosen backup's own ain is hashed later.
-$script:EnAinHash = 'A6B3693708144241'
+$script:EnAinHashes = @('A6B3693708144241',  # Kagura/Steam (all-ages)
+                        'A24F5433C3CFA130')  # Kagura/Steam + adult patch
+function Test-EnAinHash([string]$h) {
+    return $script:EnAinHashes -contains $h.ToUpper()
+}
 function Get-GameLang([string]$dir) {
     if (Test-Path (Join-Path $dir 'Rance7GB.ald')) { return 'zh' }
     $st = Join-Path $dir 'hd_patch.state'
     if (Test-Path $st) {
         $s = Get-Content $st -Raw -ErrorAction SilentlyContinue
         if ($s -match 'ain=([0-9A-Fa-f]+)') {
-            return $(if ($Matches[1] -eq $script:EnAinHash) { 'en' }
+            return $(if (Test-EnAinHash $Matches[1]) { 'en' }
                      else { 'ja' })
         }
         # state files from before the ain= field existed: the recorded
@@ -45,13 +49,14 @@ function Get-GameLang([string]$dir) {
         if ($s -match 'backup=([^;\r\n]+)') {
             $ba = Join-Path $Matches[1] 'Rance7.ain'
             if ((Test-Path $ba) -and
-                (Sha256 $ba).Substring(0, 16) -eq
-                    $script:EnAinHash) { return 'en' }
+                (Test-EnAinHash ((Sha256 $ba).Substring(0, 16)))) {
+                return 'en'
+            }
         }
     }
     $a = Join-Path $dir 'Rance7.ain'
     if ((Test-Path $a) -and
-        (Sha256 $a).Substring(0, 16) -eq $script:EnAinHash) { return 'en' }
+        (Test-EnAinHash ((Sha256 $a).Substring(0, 16)))) { return 'en' }
     return $null   # unknown build - keep the OS-culture guess
 }
 
@@ -187,8 +192,7 @@ if (-not (Test-Path (Join-Path $BackupDir 'Rance7.ain'))) {
 # last resort for en detection when the state file is absent (e.g. a
 # manually moved install): the backup holds the pristine original ain
 if ($script:LANG -eq 'ja' -and
-    (Sha256 (Join-Path $BackupDir 'Rance7.ain')).Substring(0, 16) -eq
-        $script:EnAinHash) {
+    (Test-EnAinHash ((Sha256 (Join-Path $BackupDir 'Rance7.ain')).Substring(0, 16)))) {
     $script:LANG = 'en'
 }
 

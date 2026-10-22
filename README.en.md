@@ -30,7 +30,7 @@ The patch can be installed on any of the following (order does not matter):
 - Vanilla (untouched Steam install)
 - JP patch applied
 - Simplified Chinese build
-- English (Kagura) build
+- English (Kagura) build, including with the adult patch applied
 - Other unofficial patches are auto-detected as long as their AIN changes do not overlap
 
 > **Combining with other patches**: apply other patches BEFORE the HD patch. If you apply another patch after HD and the display breaks, restore once with `Uninstall.cmd`, then install again.
