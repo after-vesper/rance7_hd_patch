@@ -292,6 +292,7 @@ $knownAin = @{
     'BF84072AAD157812' = (L '中国語版（簡体字）' '简体中文版' 'Simplified Chinese')
     'A6B3693708144241' = (L '英語版（Kagura/Steam）' '英文版（Kagura/Steam）' 'English (Kagura/Steam)')
     'A24F5433C3CFA130' = (L '英語版＋アダルトパッチ適用済み' '英文版＋成人补丁已应用' 'English (Kagura/Steam) + adult patch')
+    'E52E8905B324CBE0' = (L '中国語版＋アダルトパッチ適用済み' '简体中文版＋成人补丁已应用' 'Simplified Chinese + adult patch')
 }
 $variant = $knownAin[$ainHash]
 if (-not $variant) { $variant = (L "改造済み/非公式パッチ版 (ain hash $ainHash)" `
