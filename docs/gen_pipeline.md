@@ -289,7 +289,10 @@ assumption based on tested paths, not a proof for every late-game path).
 
 ## English (Kagura Steam) edition
 
-AIN sha256 `A6B3693708144241...` — Kagura's localisation recompiled the
+AIN sha256 `A6B3693708144241...` (all-ages) or `A24F5433C3CFA130...`
+(with the 18+ patch — it only appends functions, so the en site set
+still resolves 3193/3193 cleanly; its GM carries the R18 set and maps
+to the `jp` payloads, displayed as `adult`) — Kagura's localisation recompiled the
 message/UI functions, so the shared jp site set is not used. Instead
 `installer/data/hd_sites_en.json` (produced by `tools/en_export_sites.py`,
 which re-anchors every jp site inside the en function bodies via
