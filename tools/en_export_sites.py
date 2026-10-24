@@ -319,6 +319,43 @@ MANUAL_SITES = {
     "tagComment@create": [],
     "tagComment@show2": [],
     "tagBattle@showNumber": [],
+    # Drag out-of-bounds clamp blocks (en-only code).  The jp functions
+    # instead warp the cursor back to the last valid mouse position, so
+    # the jp sites only cover the initial OOB test and leave the clamp
+    # constants at SD scale.  Without these the clamped face position,
+    # the boundary re-test and the cursor recompute disagree with the
+    # doubled grab offset, so the no-UPDATE loop never converges and the
+    # game hard-locks with the cursor pinned to the top-left corner.
+    "tagSankaList@dragBusho": [
+        (174, 1, 2), (180, 1, 2),
+        (183, 65, 130), (191, -67, -134),
+        (197, 72, 144), (205, -74, -148),
+        (213, 32, 64), (220, 36, 72),
+    ],
+    "tagSansenList@dragBusho": [
+        (219, 1, 2), (225, 1, 2),
+        (228, 65, 130), (236, -67, -134),
+        (242, 72, 144), (250, -74, -148),
+        (258, 32, 64), (265, 36, 72),
+    ],
+    "tagItemList@dragItem": [
+        (197, 1, 2), (203, 1, 2),
+        (206, 64, 128), (214, -66, -132),
+        (220, 64, 128), (228, -66, -132),
+        (236, 32, 64), (243, 32, 64),
+    ],
+    "tagBushoInfo@dragItem": [
+        (196, 1, 2), (202, 1, 2),
+        (205, 64, 128), (213, -66, -132),
+        (219, 64, 128), (227, -66, -132),
+        (235, 32, 64), (242, 32, 64),
+    ],
+    "tagSaveStore@dragData": [
+        (207, 1, 2), (213, 1, 2),
+        (216, 60, 120), (224, -62, -124),
+        (230, 53, 106), (238, -55, -110),
+        (246, 30, 60), (253, 26, 52),
+    ],
 }
 
 # Auto-ported sites that must be dropped: the en build happens to carry
